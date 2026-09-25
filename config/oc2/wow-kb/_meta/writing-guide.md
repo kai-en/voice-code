@@ -38,7 +38,7 @@ frontmatter 必含：id, title, aliases, applies{line,versions,servers,build_ref
 7. zhcn 文案无出处不填；口播不硬报未核实按钮文字。
 8. 篇幅：条目≤80行、qa≤30、INDEX≤150、_meta 各≤200。
 9. S 级够不到的内容（NPC/坐标/任务流程/奖励/开放时间）→ 按 verification.md 第 6 节多源交叉（≥3 独立源、关键值逐项一致、孤证记录），status 一律 unverified，口播带"社区攻略交叉过"限定词。
-10. URL 卫生：禁止从历史工具输出整段复制 URL（存在 routify 代理残留 403）；检索一次不中立即换通路（bing RSS 中文长尾失真→百度；百度顶部 AI 卡片=C 级线索不作源）。
+10. URL 防改写：中转会替换模型输出里的完整 URL（403/货不对板/Ran code 见 routify 即中招）→ 用 evaluate 分片拼接或 bash 直连；routify 残留禁再用、禁当目标 URL 入库；一次改写≠目标站不可达，换法重试后再定论（详见 playwright skill §3）。
 
 ## 更新机制
 触发式重验矩阵在 `_meta/freshness.md`；条目 90 天自动降 unverified。

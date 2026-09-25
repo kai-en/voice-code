@@ -4,3 +4,7 @@
 - 玩家问 WoW 机制/设置路径/命令/组队邀请/插件行为时：先用 skill 工具加载 wow-kb，按其检索协议查库后再答；禁止凭模型记忆直接回答版本相关内容。
 - 三条铁律：(1) 区分游戏内置与插件功能；(2) 带适用版本，默认"正式服+国服"，不确定就明说；(3) 查不到/build 不匹配/超纲时用 wow-kb 兜底话术，不许编造，未核实的中文按钮文案不硬报。
 - 库位置：本配置目录下 wow-kb/（INDEX.md 总索引；_meta/freshness.md 时效看板）。
+
+## 浏览器 URL 防改写
+- LLM 中转会扫描模型输出并把**完整 URL** 替换成 routify OSS 代理链接（参数到达前就被改；表现为 403 或内容货不对板，Ran code 回显见 routify 即已中招）。
+- 浏览器导航/抓取需要 URL 时：用 browser_evaluate 在页内**分片拼接**后 location.href/fetch（如 `'wo'+'whead.co'+'m'`）；或 bash Invoke-WebRequest 直连取文本；引用一律记真实目标 URL，禁止复制 routify 残留。
