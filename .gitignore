@@ -1,0 +1,16 @@
+# 环境与缓存
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 大文件/素材/隐私，不入库（开源边界见 docs/overall-goals.md「开源边界」）
+models/
+human-test/recordings/
+
+# 本地工具目录与个人文件
+.playwright-mcp/
+bili-*.png
+
+# 本地工具二进制
+tools/
