@@ -7,7 +7,7 @@ import os
 from typing import Callable, Optional
 
 from .sse import SseParser
-from .types import OcLink, OcPermission, OcText, OcTurnDone
+from .types import OcLink, OcPermission, OcText, OcTool, OcTurnDone
 
 EXEC_MAP = {"session.execution.succeeded": "succeeded",
             "session.execution.failed": "failed",
@@ -34,6 +34,7 @@ class EventHub:
         self._stop = asyncio.Event()
         self.frames = 0
         self._attempt = 0
+        self._toolnames: dict[str, tuple] = {}       # callID -> (sid, name)，called 帧不带 name（M6.1 §1）
 
     def translate(self, ev: dict) -> Optional[object]:
         loc = ev.get("location")
@@ -56,12 +57,21 @@ class EventHub:
         if t == "permission.asked":
             return OcPermission(sid, data.get("id", ""), data.get("action", ""),
                                 str(data.get("message", "")))
+        if t == "session.tool.input.started":
+            self._toolnames[data.get("id", "")] = (sid, data.get("name", ""))
+            return OcTool(sid, data.get("id", ""), data.get("name", ""), "started")
+        if t == "session.tool.called":
+            cid = data.get("id", "")
+            return OcTool(sid, cid, self._toolnames.get(cid, (sid, ""))[1],
+                          "called", data.get("input"))
         if t in EXEC_MAP:
             asyncio.get_running_loop().create_task(self._finish(sid, t, data))
             return None
         return None
 
     async def _finish(self, sid: str, t: str, data: dict) -> None:
+        for cid in [c for c, (s_, _) in self._toolnames.items() if s_ == sid]:
+            del self._toolnames[cid]
         fut = self.pending.pop(sid, None)
         if fut is None or fut.done():
             return

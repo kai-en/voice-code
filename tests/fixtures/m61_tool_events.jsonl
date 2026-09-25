@@ -1,0 +1,2 @@
+{"type": "OcTool", "session_id": "ses_f282d0fafffeYB6weCi0lNTz7w", "call_id": "call_function_6cqmlxvu23ot_1", "name": "voice-end", "phase": "started", "tool_input": null}
+{"type": "OcTool", "session_id": "ses_f282d0fafffeYB6weCi0lNTz7w", "call_id": "call_function_6cqmlxvu23ot_1", "name": "voice-end", "phase": "called", "tool_input": {"reason": "user-requested-end-session"}}

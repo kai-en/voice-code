@@ -18,11 +18,12 @@ NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 def isolated_env(cfg: OcConfig, password: str) -> dict:
     env = os.environ.copy()
+    home = Path(cfg.home).resolve()   # 必须绝对化: 子进程 cwd=directory, 相对 XDG 会被错位解析
     env.update(
-        XDG_DATA_HOME=str(cfg.home / "data"),
-        XDG_CONFIG_HOME=str(cfg.home / "config"),
-        XDG_STATE_HOME=str(cfg.home / "state"),
-        XDG_CACHE_HOME=str(cfg.home / "cache"),
+        XDG_DATA_HOME=str(home / "data"),
+        XDG_CONFIG_HOME=str(home / "config"),
+        XDG_STATE_HOME=str(home / "state"),
+        XDG_CACHE_HOME=str(home / "cache"),
         OPENCODE_PASSWORD=password,
     )
     return env
@@ -52,7 +53,7 @@ class ServeProcess:
         proc = await asyncio.create_subprocess_exec(
             str(Path(cfg.bin).resolve()), "serve", "--stdio",
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=None, env=isolated_env(cfg, pw), cwd=str(cfg.directory),
+            stderr=None, env=isolated_env(cfg, pw), cwd=str(Path(cfg.directory).resolve()),
             creationflags=NO_WINDOW)
         try:
             line = await asyncio.wait_for(proc.stdout.readline(), ready_timeout_s)

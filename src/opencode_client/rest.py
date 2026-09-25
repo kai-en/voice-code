@@ -52,14 +52,17 @@ class OcRest:
 
     async def assistant_final_text(self, sid: str) -> tuple[str, Optional[str]]:
         """终稿校准：最后一条 assistant 消息 → (text, error|None)。"""
-        for item in reversed(await self.messages(sid)):
+        err = None
+        for item in reversed(await self.messages(sid)):   # 倒序取最后一条非空 text（多 step 回合末条可能只有 tool part）
             if item.get("type") != "assistant":
                 continue
             parts = item.get("content") or []
             text = "".join(p.get("text", "") for p in parts if p.get("type") == "text")
-            err = item.get("error")
-            return text, (err.get("message") if isinstance(err, dict) else err)
-        return "", None
+            if isinstance(item.get("error"), dict):
+                err = err or item["error"].get("message")
+            if text:
+                return text, err
+        return "", err
 
     async def stream_event(self, idle_timeout: float) -> AsyncIterator[bytes]:
         async with self._c.stream("GET", "/api/event",

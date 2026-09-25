@@ -35,6 +35,16 @@ class OcPermission:
 
 
 @dataclass(frozen=True)
+class OcTool:
+    # v2.0.16 实测: 工具名只在 input.started, called 帧无 name → hub 按 callID 关联回填
+    session_id: str
+    call_id: str
+    name: str
+    phase: str                                  # started | called
+    tool_input: dict | None = None
+
+
+@dataclass(frozen=True)
 class OcTurnDone:
     session_id: str
     outcome: str       # succeeded | failed | interrupted

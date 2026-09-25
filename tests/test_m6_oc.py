@@ -11,7 +11,8 @@ from opencode_client.events import EventHub
 from opencode_client.rest import OcRest
 from opencode_client.serve import NO_WINDOW, ServeProcess, isolated_env, parse_ready
 from opencode_client.sse import SseParser
-from opencode_client.types import OcConfig, OcLink, OcPermission, OcText, OcTurnDone
+from opencode_client.types import (OcConfig, OcLink, OcPermission, OcText, OcTool,
+    OcTurnDone)
 
 FIX = Path(__file__).parent / "fixtures"
 WS = str(Path("D:/work/voice-code/tools/oc2-home/ws").resolve())
@@ -172,6 +173,42 @@ def test_fixture_frames_replay():
     assert len(texts) >= n_delta and all(t.session_id == CAP_SID for t in texts)
 
 
+# ---------- M6.1: tool 事件关联 ----------
+def test_tool_started_then_called_resolves_name():
+    hub, _ = make_hub(own={"s1"})
+    a = hub.translate(ev("session.tool.input.started", sessionID="s1",
+                         id="tc_1", name="voice-end"))
+    b = hub.translate(ev("session.tool.called", sessionID="s1",
+                         id="tc_1", input={"reason": "bye"}, executed=False))
+    assert a == OcTool("s1", "tc_1", "voice-end", "started")
+    assert b == OcTool("s1", "tc_1", "voice-end", "called", {"reason": "bye"})
+
+
+def test_tool_called_unknown_id_blank_name():
+    hub, _ = make_hub(own={"s1"})
+    b = hub.translate(ev("session.tool.called", sessionID="s1", id="tc_9",
+                         input={}, executed=False))
+    assert b.name == "" and b.phase == "called"
+
+
+def test_tool_map_pruned_on_finish():
+    async def run():
+        hub, _ = make_hub(lambda r: httpx.Response(200, json={"items": []}), own={"s1"})
+        hub.translate(ev("session.tool.input.started", sessionID="s1", id="tc_1", name="voice-end"))
+        fut = asyncio.get_running_loop().create_future()
+        hub.pending["s1"] = fut
+        hub.translate(ev("session.execution.succeeded", sessionID="s1"))
+        await asyncio.wait_for(fut, 2)
+        assert hub._toolnames == {}
+    asyncio.run(run())
+
+
+def test_tool_events_respect_session_filter():
+    hub, _ = make_hub(own={"s1"})
+    assert hub.translate(ev("session.tool.input.started", sessionID="s2",
+                            id="t", name="x")) is None
+
+
 # ---------- rest.py ----------
 def test_rest_paths_auth_and_returns():
     async def run():
@@ -212,6 +249,10 @@ def test_rest_assistant_final_text():
                             "error": {"message": "boom"}}]}
         r = rest_of(lambda req: httpx.Response(200, json=items))
         assert await r.assistant_final_text("s1") == ("答", "boom")
+        multi = {"items": [{"type": "assistant", "content": [{"type": "text", "text": "再见"}]},
+                           {"type": "assistant", "content": [{"type": "tool"}]}]}
+        r2 = rest_of(lambda req: httpx.Response(200, json=multi))
+        assert await r2.assistant_final_text("s1") == ("再见", None)
         await r.aclose()
     asyncio.run(run())
 
