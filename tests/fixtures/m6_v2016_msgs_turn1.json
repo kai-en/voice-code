@@ -1,0 +1,72 @@
+{
+ "data": [
+  {
+   "id": "msg_0d6c61ce3001oIxXKRQI7nfcUl",
+   "time": {
+    "created": 1790309702883
+   },
+   "type": "idle",
+   "outcome": "succeeded"
+  },
+  {
+   "id": "msg_0d6c6124e001BZgC9mbZ7vk1ZA",
+   "time": {
+    "created": 1790309700496,
+    "streamed": 1790309702749,
+    "completed": 1790309702880
+   },
+   "type": "assistant",
+   "agent": "build",
+   "model": {
+    "id": "space-bunny-free",
+    "providerID": "opencode"
+   },
+   "content": [
+    {
+     "type": "reasoning",
+     "text": "We need obey user exactly two Chinese chars 收到, no tools.",
+     "state": {
+      "reasoningField": "reasoning_content"
+     },
+     "time": {
+      "created": 1790309702633,
+      "completed": 1790309702746
+     }
+    },
+    {
+     "type": "text",
+     "text": "收到"
+    }
+   ],
+   "snapshot": {
+    "start": "63a8a24aa583128edd28f7635dfc6862b4298d42",
+    "end": "63a8a24aa583128edd28f7635dfc6862b4298d42",
+    "files": []
+   },
+   "finish": "stop",
+   "rawFinish": "stop",
+   "cost": 0,
+   "tokens": {
+    "input": 6214,
+    "output": 1,
+    "reasoning": 16,
+    "cache": {
+     "read": 475,
+     "write": 0
+    }
+   }
+  },
+  {
+   "id": "msg_0d6c61088001HA5dyfaaUFsfut",
+   "time": {
+    "created": 1790309700167
+   },
+   "text": "请只回复两个字：收到。不要调用任何工具。",
+   "type": "user"
+  }
+ ],
+ "cursor": {
+  "previous": "eyJpZCI6Im1zZ18wZDZjNjFjZTMwMDFvSXhYS1JRSTduZmNVbCIsIm9yZGVyIjoiZGVzYyIsImRpcmVjdGlvbiI6InByZXZpb3VzIn0",
+  "next": "eyJpZCI6Im1zZ18wZDZjNjEwODgwMDFIQTVkeWZhYVVGc2Z1dCIsIm9yZGVyIjoiZGVzYyIsImRpcmVjdGlvbiI6Im5leHQifQ"
+ }
+}

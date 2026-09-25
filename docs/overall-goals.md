@@ -28,8 +28,17 @@
 
 | 阶段 | 目标 | 状态 |
 | ---- | ---- | ---- |
-| M1   |      | 未开始 |
-| M2   |      | 未开始 |
+| M1   | 音频采集（WASAPI，有界队列+看门狗） | ✅ 完成 |
+| M2   | 激活词 KWS（"小码小码"） | ✅ 完成 |
+| M3+M4 | VAD 断句 + ASR 转写（Qwen3-ASR-0.6B） | ✅ 完成 |
+| M5   | 编排器（唤醒→监听→转写→opencode→播报状态机） | 未开始 |
+| M6   | opencode_client（v2 免费池 REST/SSE 集成） | ✅ 完成（2026-09-25，e2e PASS） |
+| M7   | TTS + 音色锁定（VoxCPM1.5 + prompt cache） | ✅ 完成（2026-09-25 T7c PASS） |
+| M8   | end_session 识别 + 回声防护 | 未开始 |
+| M9   | ux_adapter（非焦点/提示音/托盘） | 未开始 |
+| M10  | support（日志/看门狗/热键兜底） | 未开始 |
+
+详细进度快照见 `docs/0925工作/progress.md`。
 
 ## 非目标（Out of Scope）
 
