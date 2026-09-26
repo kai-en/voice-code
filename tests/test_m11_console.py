@@ -181,3 +181,15 @@ def test_textin_running_barges_in():                         # R1
         orch.request_stop()
         await asyncio.wait_for(task, 2)
     asyncio.run(_run())
+
+
+# ---------- M13 对话流水视图（同一批帧的投影，src/ 零改动） ----------
+def test_dialog_render_only_two_party_lines():
+    from console.dialog import render
+    assert render({"t": "speak", "text": "第一句。\n第二行"}) == "助手：第一句。 第二行"
+    assert render({"t": "ev", "kind": "AsrText", "d": {"text": "我说的话"}}) == "你：我说的话"
+    assert render({"t": "ev", "kind": "TextIn", "d": {"text": "打字问"}}) == "你：打字问"
+    assert render({"t": "ev", "kind": "AsrText", "d": {"text": ""}}) is None      # 空文本(如 stop 帧)不入流水
+    assert render({"t": "ev", "kind": "OcTool", "d": {"name": "grep"}}) is None
+    assert render({"t": "state", "state": "RUNNING"}) is None
+    assert render({"t": "hello", "v": 1, "port": 8765}) is None
