@@ -333,6 +333,12 @@ class WinTtsEngine:
             text = self._q.get()
             if self._stop.is_set():
                 return
+            if self._proc is None:                 # stop() 杀过 → 先重生再写, 绝不撞 None
+                try:
+                    self._proc = self._spawn()
+                except Exception:
+                    self.err_count += 1
+                    continue
             self._cur = text
             self._emit(SpeakStart(text, time.time()))
             t0 = time.monotonic()
@@ -343,15 +349,15 @@ class WinTtsEngine:
                 if ack.strip() != b"OK":
                     raise RuntimeError(f"wintts ack 异常: {ack!r}")
             except Exception:
-                self.err_count += 1
-                import traceback
-                traceback.print_exc()          # 落 daemon 崩溃通道, ERR 不再静默
                 with_proc, self._proc = self._proc, None
                 if with_proc:
                     with_proc.kill()
-                if self._killed_by_stop:          # stop() 杀句 = 静默丢弃, 不重播
+                if self._killed_by_stop:          # stop() 杀句=预期内: 静默丢弃, 不记错不打栈(Interrupted 已由 stop() 发过)
                     self._killed_by_stop = False
                     continue
+                self.err_count += 1
+                import traceback
+                traceback.print_exc()          # 落 daemon 崩溃通道, ERR 不再静默
                 cur, self._cur = self._cur, None
                 if cur is not None and not self._stop.is_set():
                     self._emit(Interrupted(cur, time.time()))

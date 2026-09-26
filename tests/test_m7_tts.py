@@ -92,6 +92,32 @@ def test_wintts_stop_kills_and_drops_current():
     e.shutdown()
 
 
+def test_wintts_speak_after_stop_is_clean():
+    """T-D 复现: stop() 把 _proc 置 None 后, 下一句在 write 处撞 AttributeError
+    (真机日志 16:17:59 两段 traceback)。期望: 在飞句静默丢弃, 新句正常播出, 不记错不打栈。"""
+    evs, procs = [], []
+
+    def popen(cmd, **kw):                       # 第 1 个 proc 卡在等 OK(模拟正在播), 重生后的第 2 个正常回 OK
+        p = FakeProc(["READY"] if not procs else ["READY", "OK"], block_until_kill=not procs)
+        procs.append(p)
+        return p
+
+    e = WinTtsEngine(TtsConfig(backend="wintts"), evs.append, popen=popen)
+    e.start()
+    assert e.ready.wait(3.0)
+    e.speak("正在飞的那句。")
+    time.sleep(0.15)                              # worker 卡在 readline 等 OK
+    e.stop()                                      # 杀正在播的句
+    time.sleep(0.2)
+    e.speak("打断之后的新句。")
+    assert _wait(lambda: e.stats()["sent"] == 1), f"新句没播出: {[type(x).__name__ for x in evs]}"
+    assert e.stats()["err"] == 0, f"stop 后不该记错/打栈: {e.stats()}"
+    assert sum(isinstance(x, Interrupted) for x in evs) == 1     # 只该丢在飞那句
+    assert any(isinstance(x, SpeakFinish) and x.text.startswith("打断之后") for x in evs)
+    assert len(procs) == 2                                   # 重生了一次
+    e.shutdown()
+
+
 class FakeModel:
     def __init__(self):
         self.calls = []                    # (text, thread_ident)
