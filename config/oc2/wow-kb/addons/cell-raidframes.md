@@ -32,7 +32,7 @@ Cell 原作者停更了，但国服有社区接手：现在用"米利修复版"�
 
 ## 机制细节
 - 指示器系统（icon/bar/rect/text）支持"增益缺失"条件——目标缺指定法术时显示，否则隐藏（=玩家要的"没有才显示"）。
-- 版本分叉：米利修复线（r289→**r304**，2026-09-22 现值，miliui 站 2.00MB/200 次下载）vs NeeRgY/krysiolol GitHub fork 线（r277.9.8.x，团本报错反馈）；两者配置不通用。
+- 版本分叉：米利修复线（r289→**r304**，2026-09-26 回访 miliui 仍 r304；实测=Midnight fork 基底+自有补丁，非旧原始线；含 12.x 点击闸 proxy 修复）vs NeeRgY/krysiolol GitHub fork 线（r277.9.8.x，活跃）；两者配置不通用。
 - 12.1 起光环 API 大改：所有依赖旧光环接口的框体插件都要重写适配（不止 Cell），旧配置（WTF）不清会触发"指示器全空"假象。
 
 ## 常见误区
@@ -42,9 +42,10 @@ Cell 原作者停更了，但国服有社区接手：现在用"米利修复版"�
 - 把怀旧 backport（3.3.5a）装正式服 → 产品线错配。
 
 ## 相关条目
-retail.ui.raidframe-buff-missing（内置只有全显/全隐的 S 级事实）· addons._catalog
+retail.ui.raidframe-buff-missing（内置只有全显/全隐的 S 级事实）· addons.cell-click-bindings（点击层改键）· addons._catalog
 
 ## 核验日志
 - 2026-09-25 初版：bing 摘要×4（unverified 顶棚）。
 - 2026-09-25 二修（NGA 登录态实测可用后升 S）：tid=47379276 主楼+米利回复逐层核读；miliui 站 200；GitHub fork 链核出。r292 时点"增益缺失"指示器是否已修好未见明说——**给玩家推荐前留一句"缺buff指示器可能要等后续更新"**，已在口播体现。
 - 2026-09-26 三修：miliui 回访最新=r304（Interface 120007/120100/120105 适配 12.1.x）；取包流程实测=preparedownload 签名页(分钟级 TTL)→确认页 form POST(_token)→浏览器下载，纯 bash 403；NGA 帖附件 CDN 掐链不通。本机已装 r304（旧 r274 备份于 D 盘 temp，WTF 无 Cell 配置残留）。
+- 2026-09-26 四修：主会话按 git blob sha 钉谱系——r304 的 ClickCastings.lua(blob d4a141d1) 与 NeeRgY/krysiolol/enderneko 三线均不同=米利自有衍生，且**含** 12.x 点击闸 proxy（推翻"米利基于无修复原始线"假设）；本机安装路径实为 G:\World of Warcraft\_retail_（非 D/H 盘）。点击施法改键单独立条 addons.cell-click-bindings。

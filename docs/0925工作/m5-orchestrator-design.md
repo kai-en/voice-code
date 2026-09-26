@@ -64,3 +64,10 @@ RUNNING ──OcPermission──▶ PERM：播"需要授权X，说允许或拒�
 ## §8 勘误占位
 
 编码后回填行数核对、插件实测记录、T-M5-x 数据（3s 归并正确性、打断尾音、自激计数）。
+
+### 2026-09-26 真机回填（三条，都不改本文 §1 的状态机图）
+
+1. **3s 归并真机不合格 → 用"打断=追加重问"补，不调窗**。`collect_silence_s` 保持 3.0。真机 6 次打断里，用户续说间隔有 0s/1s/3s/**7s/7s**（`logs` 22:11-22:12 四段连说被腰斩），调窗到 5~6s 既覆盖不了 7s、又把首响从 6-8s 推到 9-11s，属调参不属修复。落地：`core.py` 新增 `_sent`（已发出但那轮被打断没答完的提问），下一次成轮时前置 → 发 `B1\nB2`。清零点：本轮真收场（succeeded/failed/退出+`sid=None`）、send 失败（防 `B1\nB1\nB2`）。不变式：`_sent` 与 `buf` 永不持有同一段字符。
+2. **interrupt 收敛实测 <1s**（6 次全部与 `RUNNING->COLLECT` 同秒），所以 busy 护栏真机从未触发；"X2 必须等 X1 的 TurnDone"这条由既有 `_turn_fut` 护栏免费保证，不需要新机制。
+3. **上游事实（为未来 Option B 记档）**：opencode 2.0.16 `POST /prompt` 默认 `delivery:"steer"` 且**服务端无 busy 检查**（本机 fixture `tests/fixtures/m6_v2016_frames_turn2.jsonl:3` 实证我们的请求就是 steer 投递）。⇒ 真正对齐"打字体验"的路线是 **Option B：barge-in 只 `tts.stop()` 不 interrupt，让服务端把 B2 steer 进活回合**（那样根本不产生 aborted 空 assistant 消息）。阻塞项：放宽 `client.py` 串行断言、给 `pending[sid]` 加回合归属、设计"steer 前旧答案 delta 不得继续播"的 TTS 抑制策略 → 需单独立项 spike，本期不做。
+4. 附带：`interrupted` 轮的 `OcTurnDone.text` 会回退成上一轮文本（`rest.py` 取"最后一条非空 assistant"，本轮零产出时必然命中旧消息）。本期不为它在 core 加判断（真机被"状态早退 + outcome 闸"两道闸挡住，播不出来）；最小干净修法留给 M6：`events.py` 里 `outcome != "succeeded"` 时置 `text=""`，或记住 `assistantMessageID` 按 ID 取终稿。

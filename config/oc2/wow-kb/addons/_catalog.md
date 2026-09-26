@@ -20,7 +20,7 @@ verified: { date: 2026-09-25, by: "deepthink-0925" }
 | ElvUI | "一般"标签底部"自动"栏含自动接受邀请 | none | NGA tid=39655237 摘要 | 待核 |
 | EUI / 老农整合包 | 包内聚合了自动接受类选项 | none | 百度知道提问摘要(2015 老帖, 版本漂移风险大) | 待核·低置信 |
 | Details（战斗统计） | 多窗口各挂一种数据源：伤害+治疗同屏见专条 | 未核（原生战斗日志界面不展开） | 插件源码@1fc0b3ea(S) → addons.details-dual-windows | 已核实→见专条 |
-| Cell（团队框架） | 原作者停更→米利修复版 r292（miliui站）；"增益缺失"指示器=缺buff才亮，12.1 光环 API 大改后指示器分批修复中；大脚集成版前夕即废 | 内置只有 displayBuffs 全显/全隐（S） | NGA tid=47379276 全文(S) → addons.cell-raidframes | 已核实→见专条 |
+| Cell（团队框架） | 原作者停更→米利修复版 r304（miliui站）；"增益缺失"指示器=缺buff才亮，12.1 光环 API 大改后指示器分批修复中；点击施法改键（选中/菜单→Shift组合）=自家"点击施法"页，12.x 闸需带 proxy 版本线；大脚集成版前夕即废 | displayBuffs 全显/全隐（S）；点击改键=原生面板只管原生框（S）→ retail.ui.click-bind-target-menu | NGA tid=47379276 全文(S) → addons.cell-raidframes · addons.cell-click-bindings | 已核实→见专条 |
 | FarmHud（双采路线） | 小地图上红色移动路径箭头=该插件所画，设置内可关 | 内置任务轨迹是金色（且无开关，见专条） | NGA tid=43398700 定案帖(S正文) | 已核实 |
 | GCD Cursor Plus / CursorRing（前身 Ultimate Mouse Cursor 系 WA，12.0 已停支持） | 屏幕 GCD 转圈圈环（跟随鼠标或固定中间） | none（内置无此形态，未深核） | CursorRing README(S) + NGA摘要×3(B) → addons.gcd-ring-display | 交叉·unverified |
 

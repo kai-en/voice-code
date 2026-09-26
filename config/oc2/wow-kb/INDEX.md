@@ -30,6 +30,11 @@
 | qa.retail-spire-story-mode | qa/retail-spire-story-mode.md | unverified | - |
 | retail.quests.liadrin-well-phasing-bug | retail/quests/liadrin-well-phasing-bug.md | verified | 在线修正2026-09-04 |
 | qa.retail-hour-of-need-liadrin-missing | qa/retail-hour-of-need-liadrin-missing.md | verified | - |
+| retail.ui.click-bind-target-menu | retail/ui-settings/click-bind-target-menu.md | verified | 12.1.0.69283 |
+| addons.cell-click-bindings | addons/cell-click-bindings.md | verified | - |
+| qa.retail-raidframe-click-rebind | qa/retail-raidframe-click-rebind.md | verified | - |
+| retail.quests.midnight-prey-hunt-nightmare | retail/quests/midnight-prey-hunt-nightmare.md | unverified(多源交叉) | - |
+| qa.retail-nightmare-hunt-howto | qa/retail-nightmare-hunt-howto.md | unverified | - |
 
 ## 空目录占位（勿删，结构即承诺）
-retail/commands、classic/*、forever、universal —— 首批未覆盖；新增条目须走 `_meta/verification.md` 核验流程后置状态。副本/任务流程类内容放 `retail/raids/`（首例已建）。任务 BUG/流程类首例已建（retail/quests/liadrin-well-phasing-bug）。ui-settings 首例已建（raidframe-buff-missing）。
+retail/commands、classic/*、forever、universal —— 首批未覆盖；新增条目须走 `_meta/verification.md` 核验流程后置状态。副本/任务进入流程类放 `retail/raids/`（首例已建）。任务 BUG/流程类放 `retail/quests/`（liadrin-well-phasing-bug、midnight-prey-hunt-nightmare）。ui-settings 首例已建（raidframe-buff-missing）。

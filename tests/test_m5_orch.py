@@ -271,6 +271,132 @@ def test_running_state_set_before_send_returns():
     asyncio.run(_run())
 
 
+def test_blank_sentences_are_not_spoken():
+    """delta 里带 \\n\\n 时断句会产出纯换行"句子"：不得进口播、不得计入 spoken_len。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("x", 0), AsrText("问一句", 0, 0.5)])
+        try:
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            for d in ["第一句。\n\n", "第二句！"]:
+                orch.post(OcText("ses_1", d, final=False))
+                await asyncio.sleep(0.02)
+            assert tts.spoken[1:] == ["第一句。", "第二句！"], tts.spoken
+            assert orch.spoken_len == 8                      # "第一句。"4 + "第二句！"4, 换行不计
+        finally:
+            fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+# ---------- 打断 = 追加重问（_sent 前置；真机 22:27 答非所问的修复） ----------
+def test_barge_in_resend_carries_previous_question():
+    """X1 在飞时被 X2 打断 → X2 必须发 X1+X2 整轮，而不是只发后半句。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("x", 0), AsrText("我在打幽魂角斗士", 0, 0.5)])
+        try:
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)                 # X1 发出
+            assert orch._sent == "我在打幽魂角斗士"
+            orch.post(AsrText("但是我们也会互相打倒", 0, 0.5))            # barge-in 打断
+            await asyncio.sleep(0.02)
+            orch.post(OcTurnDone("ses_1", "interrupted", "", None, 0))   # 陈旧终 → 早退, _sent 保留
+            await asyncio.sleep(0.02)
+            assert orch._sent == "我在打幽魂角斗士"
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert oc.sent[-1][1] == "我在打幽魂角斗士\n但是我们也会互相打倒"
+            assert len(oc.sent) == 2 and oc.interrupts == ["ses_1"]
+        finally:
+            fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+def test_sent_cleared_after_settled_turn():
+    """正常收场(succeeded)必须清前缀，否则每轮都拖着全部历史。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("x", 0), AsrText("问题A", 0, 0.5)])
+        try:
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert orch._sent == "问题A"
+            fut.set_result(OcTurnDone("ses_1", "succeeded", "答A。", None, 0))
+            await asyncio.sleep(0.05)
+            assert orch._sent == ""
+            oc.send_fut = None                                           # 换新的未收场 Future
+            orch.post(AsrText("问题B", 0, 0.5)); await asyncio.sleep(0.02)
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert oc.sent[-1][1] == "问题B" and len(oc.sent) == 2
+        finally:
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+def test_topic_change_barge_in_still_prepends():
+    """换话题型打断也照拼（B1 本来就在会话历史里, 前置不引入模型看不到的信息）——
+    钉住"无条件拼接"这个设计决定, 防将来有人塞 NLU/关键词判断。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("x", 0), AsrText("长任务", 0, 0.5)])
+        try:
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            orch.post(AsrText("停，换个事", 0, 0.5)); await asyncio.sleep(0.02)
+            orch.post(OcTurnDone("ses_1", "interrupted", "", None, 0)); await asyncio.sleep(0.02)
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert oc.sent[-1][1] == "长任务\n停，换个事"
+        finally:
+            fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+class BoomOc(FakeOc):
+    def __init__(self):
+        super().__init__()
+        self.boom = True
+
+    async def send(self, sid, text):
+        if self.boom:
+            self.boom = False
+            raise RuntimeError("boom")
+        return await super().send(sid, text)
+
+
+def test_send_failure_does_not_duplicate_prefix():
+    """send 失败时前缀已随 text 整体还回 buf → 再试不能变成 B1\\nB1\\nB2。"""
+    async def _run():
+        orch = Orchestrator(OrchConfig(), clock=lambda: 1000.0)
+        oc = BoomOc()
+        orch.bind(None, FakeAsr(), FakeTts(), oc)
+        task = asyncio.create_task(orch.run())
+        orch.post(KwsHit("x", 0)); await asyncio.sleep(0.02)
+        orch.post(AsrText("B1", 0, 0.5)); await asyncio.sleep(0.02)
+        orch.collect_deadline = 0.0
+        await orch.tick(); await asyncio.sleep(0.05)
+        assert orch._sent == "" and orch.buf == "B1" and orch.state == COLLECT
+        orch.post(AsrText("B2", 0, 0.5)); await asyncio.sleep(0.02)
+        orch.collect_deadline = 0.0
+        await orch.tick(); await asyncio.sleep(0.05)
+        assert oc.sent[-1][1] == "B1B2", oc.sent            # buf 内合并是 += 无分隔(既有语义); 关键是前缀没变成 B1\nB1\nB2
+        orch.request_stop(); await asyncio.wait_for(task, 2)
+    asyncio.run(_run())
+
+
 def test_barge_in_stops_and_recollects():
     async def _run():
         orch, asr, tts, oc, now = build()
@@ -304,7 +430,7 @@ def test_turn_busy_guard_no_double_send():
             orch.buf = "任务二"
             orch.collect_deadline = now[0]
             await orch.tick(); await asyncio.sleep(0.02)
-            assert oc.sent[-1][1] == "任务二" and len(oc.sent) == 2
+            assert oc.sent[-1][1] == "任务一\n任务二" and len(oc.sent) == 2   # 打断=追加重问：带上前半轮
         finally:
             await finish(task, orch)
     asyncio.run(_run())
@@ -323,6 +449,7 @@ def test_voice_end_only_exit_channel():
             orch.post(OcTurnDone("ses_1", "succeeded", "再见，祝顺利。", None, 0))
             await asyncio.sleep(0.02)
             assert orch.state == IDLE and orch.sid is None and asr.active is False
+            assert orch._sent == ""                                # 退出/换会话必须清前缀
             assert tts.spoken == ["在呢。", "再见，祝顺利。"]   # 不补 bye（模型已道别）
         finally:
             await finish(task, orch)

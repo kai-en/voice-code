@@ -84,6 +84,7 @@ class Orchestrator:
         self._rid = None                # 待答权限 request id
         self.spoken_len = 0             # 本回合已播字数（终稿对账）
         self._rest = ""                 # 本回合模型话里还没成句的尾巴（与 self.buf 对称）
+        self._sent = ""                 # 已发出但那轮被打断没答完的提问；下次前置 → 打断=追加重问
         self._q: asyncio.Queue = asyncio.Queue()
         self._loop, self._pre = None, []
         self.kws = self.asr = self.tts = self.oc = None
@@ -173,6 +174,7 @@ class Orchestrator:
                 await self._answer_perm(text)
         elif cls == "OcText" and self.state in (RUNNING, PERM) and not ev.final:
             sents, self._rest = textproc.feed(ev.text, self._rest)   # 尾巴必须带下来：delta 多为逗号结尾的碎片
+            sents = [s for s in sents if s.strip()]                  # 纯换行/空白不成句(断句按 \n 硬断的副产物)
             for s in sents:
                 self._speak(s)
                 self.spoken_len += len(s)
@@ -197,6 +199,8 @@ class Orchestrator:
             self.collect_deadline = self.clock() + 2.0
             return
         text, self.buf = self.buf, ""
+        if self._sent:                                       # 打断=追加重问：把没答完的前半轮带回来
+            text = self._sent + "\n" + text
         self.collect_deadline = 0.0
         self.spoken_len, self._rest = 0, ""
         self._turn_fut = _SENDING                    # await 期间不得再发第二句(M6 同 session 禁并发)
@@ -208,10 +212,12 @@ class Orchestrator:
         except Exception as e:
             self._log(f"send failed: {e}")
             self._turn_fut = None
+            self._sent = ""                          # 前缀已随 text 整体还回 buf, 否则下轮变 B1\nB1\nB2
             self.buf = self.buf or text              # 还回缓冲(除非已被新话占住)，回 COLLECT 下轮再试
             self._go(COLLECT)
             return
         self._turn_fut = fut
+        self._sent = text                            # 记账：本轮已发出的全文（被打断则下轮前置）
         asyncio.get_running_loop().create_task(self._await_turn(fut))
 
     async def _await_turn(self, fut):
@@ -226,7 +232,8 @@ class Orchestrator:
     async def _end_turn(self, ev):
         self._turn_fut = None
         if self.state not in (RUNNING, PERM):
-            return                                   # barge-in 后的陈旧终 → 丢弃
+            return                                   # barge-in 后的陈旧终 → 丢弃（_sent 保留，下轮前置）
+        self._sent = ""                              # 本轮真收场(succeeded/failed/退出) → 不再前置
         for s in textproc.flush(self._rest):         # 尾巴整段播（必须在下面"零播才兜底"之前，否则双播）
             self._speak(s)
             self.spoken_len += len(s)

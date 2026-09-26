@@ -15,6 +15,9 @@ from asr.vad_sentence import VadConfig, VadSentencer, build_vad
 
 SR = 16000
 QWEN3_DIR = "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
+# WoW 热词 (qwen3 system-prompt 上下文偏置; 中文按字 ≈ token 上界, 官方 ≥48 token WARN)
+WOW_HOTWORDS = ("周常,英雄难度,小德,龙希尔,虚空侵攻,盘卷蛇岛,"
+                "圣骑士,潜行者,死亡骑士,萨满,术士,武僧,恶魔猎手")
 SENSEVOICE_DIR = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17"
 # 语言前缀防御 (impl 已自动剥离, #3472; 此为保险丝): "language Chinese<asr_text>..."
 _PREFIX_RE = re.compile(r"^\s*language\s+\S+?<asr_text>")
@@ -26,7 +29,7 @@ class AsrConfig:
     model_dir: Path = Path("models") / QWEN3_DIR
     silero_vad_model: Path = Path("models/silero_vad.onnx")
     num_threads: int = 2
-    hotwords: str = ""                       # 逗号分隔, 仅 qwen3; ≥48 token 官方 WARN
+    hotwords: str = WOW_HOTWORDS             # 逗号分隔, 仅 qwen3; ≥48 token 官方 WARN
     vad_min_silence_s: float = 0.6
     vad_max_speech_s: float = 20.0
     max_new_tokens: int = 192                # 默认 128 对 20s 句有截断 WARN 风险
