@@ -15,6 +15,7 @@ from audio_capture.capture import (
     NoInputDeviceError,
     StallWatchdog,
     WatchdogConfig,
+    device_line,
     resolve_device,
 )
 
@@ -122,8 +123,8 @@ def test_resolve_default_device():
     monkeypatch_holder = cap.__dict__["_import_sd"]
     cap.__dict__["_import_sd"] = lambda: monkey_sd
     try:
-        idx, name, hf = resolve_device(None)
-        assert idx == 1 and hf is False and "Realtek" in name
+        idx, name = resolve_device(None)
+        assert idx == 1 and "Realtek" in name
     finally:
         cap.__dict__["_import_sd"] = monkeypatch_holder
 
@@ -134,7 +135,7 @@ def test_resolve_by_substring_case_insensitive_chinese():
     orig = cap.__dict__["_import_sd"]
     cap.__dict__["_import_sd"] = lambda: monkey_sd
     try:
-        idx, name, hf = resolve_device("evolve2")
+        idx, name = resolve_device("evolve2")
         assert idx == 0 and name == devs[0]["name"]
     finally:
         cap.__dict__["_import_sd"] = orig
@@ -148,24 +149,13 @@ def test_resolve_by_index():
     orig = cap.__dict__["_import_sd"]
     cap.__dict__["_import_sd"] = lambda: _fake_sd(devs)
     try:
-        idx, name, _ = resolve_device("1")
+        idx, name = resolve_device("1")
         assert idx == 1 and name == devs[1]["name"]
         try:
             resolve_device("9")
             assert False, "index out of range should raise"
         except DeviceNotFoundError:
             pass
-    finally:
-        cap.__dict__["_import_sd"] = orig
-
-
-def test_resolve_hands_free_flag():
-    devs = [{"name": "XX-123 Hands-Free AG Audio", "max_input_channels": 1}]
-    orig = cap.__dict__["_import_sd"]
-    cap.__dict__["_import_sd"] = lambda: _fake_sd(devs)
-    try:
-        _, _, hf = resolve_device("hands")
-        assert hf is True
     finally:
         cap.__dict__["_import_sd"] = orig
 
@@ -239,3 +229,18 @@ def test_watchdog_healthy_stays_armed():
         mic.last_nonzero = now
         assert w.check(now) == []
     assert w.state == "ARMED"
+
+
+def test_device_line_reports_mic_and_speaker():
+    devs = [{"name": "回音消除话筒 (Jabra SPEAK 410 USB)", "max_input_channels": 1, "max_output_channels": 0},
+            {"name": "扬声器 (Realtek)", "max_input_channels": 0, "max_output_channels": 2}]
+    fake = types.SimpleNamespace(
+        query_devices=lambda idx=None: devs if idx is None else devs[idx],
+        default=types.SimpleNamespace(device=(0, 1)))
+    orig = cap.__dict__["_import_sd"]
+    cap.__dict__["_import_sd"] = lambda: fake
+    try:
+        mic = types.SimpleNamespace(device_index=0, device_name_resolved="回音消除话筒 (Jabra SPEAK 410 USB)")
+        assert device_line(mic) == ("mic=#0 回音消除话筒 (Jabra SPEAK 410 USB) | speaker=#1 扬声器 (Realtek)")
+    finally:
+        cap.__dict__["_import_sd"] = orig

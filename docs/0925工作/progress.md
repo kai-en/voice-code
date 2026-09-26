@@ -10,7 +10,7 @@
 | M2 | 激活词 KWS（"小码小码"，sherpa-onnx zipformer 3M int8） | ✅ 完成 | 152 / 180 | 7 | T5 PASS（11/10 次命中） |
 | M3+M4 | VAD（silero）+ 断句 + ASR（Qwen3-ASR-0.6B int8 onnx） | ✅ 完成 | 239 / 240 | 10 | T7 已取消→并入 T7b |
 | M7 | TTS（VoxCPM1.5，RTF≈0.35-0.40，**音色锁定已落地**：站录 prompt + build_prompt_cache） | ✅ 完成 | ~183 / 160（超行勘误见 tts-voice-lock-plan.md） | 5 | 真机开口✅；**T7c 六句克隆稳定性 PASS**；T7b 待用户跑 |
-| M5 | 编排器（唤醒→监听→转写→送 opencode→播报） | ⬜ 未开始 | - | - | - |
+| M5 | 编排器（全双工 v2；第1轮优化5项已修：桥接死循环/回采去重/结构化日志/响度归一/voice agent） | 🟡 代码+单测完成 | 333 / 254（1.31×，见 round1-optimize 勘误） | +16（全量 85 绿） | **T-M5 待复测** |
 | M6 | opencode_client（v2 免费池 + serve --stdio + SSE + 串行回合；**无 key**，设计 m6-opencode-client-design.md） | ✅ 完成 | 441 / 525 | +26（全量 65 绿） | e2e PASS |
 | M6.1 | voice-end 退出工具插件（设计 m6.1-voice-end-plugin-design.md） | ✅ 完成 | +~26（M6 内） | +4（全量 69 绿） | T-M6.1 **PASS**（须钉 model） |
 | M8 | end_session 回声防护 | ⬜ 未开始 | - | - | - |

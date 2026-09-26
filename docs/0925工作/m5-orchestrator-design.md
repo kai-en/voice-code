@@ -15,6 +15,9 @@ IDLE ──KwsHit──▶ COLLECT（ack 并行播，VAD 全开；sid=新会话�
 COLLECT ──AsrText──▶ 入缓冲+重置 3s 计时（ack 期间来的话术同样收编：若 ack 未播完且用户在说话→tts.stop()，收编不中断 ack 语义）
 COLLECT ──3s 静默且缓冲非空──▶ RUNNING：session_new?→send(全部文本)
 RUNNING ──OcText.delta──▶ 简单分句(仅 。！？\n 或流结束)→首句即 tts.speak；后续句进 TtsEngine 队列
+        【0926 勘误·用户改拍】两级分句：硬断 。/\n 不变；其余标点(，、；：！？…—等)仅当本句已≥40字才作软断，
+        无软标点不误切、等硬断/TurnDone flush。依据 VoxCPM 官方 Usage Guide"长文本=不稳定首因，拆短句"；
+        本机实测 52 字句 synth 10.6s/超阈值，40 字≈9s 音频为锚。见 textproc.SOFT_MIN，UT 2 例。
 RUNNING ──AsrText──▶ 【barge-in 主通道】tts.stop()×2(0.4s 补刀) + interrupt(sid) → 该句入缓冲 → COLLECT
 RUNNING ──TurnDone──▶ 尾句 flush+speak → 播完仍回 COLLECT（会话续用，免唤醒连续对话）
 RUNNING ──OcPermission──▶ PERM：播"需要授权X，说允许或拒绝"；此态 AsrText→匹配 once/reject→reply→回 RUNNING；15s 无应答→reject

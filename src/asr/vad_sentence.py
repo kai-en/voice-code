@@ -49,8 +49,10 @@ def build_vad(cfg: VadConfig):
 
 
 class VadSentencer:
-    """消费 M1 vad 队列(20ms f32 帧) → Silero → on_segment(samples, start)。
+    """消费 M1 vad 队列(20ms f32 帧) → Silero → on_segment(samples, seg_end)。
 
+    seg_end = 段出队时刻(monotonic)，即"用户说完这句 + 静音判定"的那一刻；
+    M4 用它减去 min_silence 得到真实语音结束时刻，供 M5 的 3s 收集窗口锚定（锚在说话结束，不是解码结束）。
     inactive: 只滚动预卷不喂 VAD；active 首刻把预卷灌回，兑现 200ms 句首保护。
     段必须 numpy 拷贝后再 pop（front.samples 随 pop 失效，设计 §10-7）。
     """
@@ -101,11 +103,11 @@ class VadSentencer:
         self._buf = self._buf[off:]
         while not self._vad.empty():
             seg = np.array(self._vad.front.samples, dtype=np.float32)  # 拷贝!
-            start = float(self._vad.front.start)
+            seg_end = self.clock()          # 出队时刻 = 语音结束 + min_silence 判定延迟
             self._vad.pop()
             if seg.size:
                 self.segment_count += 1
-                self._on_segment(seg, start)
+                self._on_segment(seg, seg_end)
 
     def _run(self) -> None:
         while not self._stop.is_set():

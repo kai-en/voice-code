@@ -68,9 +68,9 @@ class DropOldestQueue:
 
 
 def resolve_device(name: Optional[str] = None):
-    """按子串(不区分大小写)匹配输入设备；name=None 时取系统默认输入。
+    """子串粗(大小写不敏感)匹配输入设备；name=None 时取系统默认输入。
 
-    返回 (index, device_name, is_hand_free)。
+    返回 (index, device_name)。
     """
     sd = _import_sd()
     devs = sd.query_devices()
@@ -91,7 +91,18 @@ def resolve_device(name: Optional[str] = None):
         default_idx = sd.default.device[0]
         hits = [(i, d) for i, d in inputs if i == default_idx] or inputs
     i, d = hits[0]
-    return i, d["name"], "hands-free" in d["name"].lower()
+    return i, d["name"]
+
+
+def device_line(mic) -> str:
+    """启动日志一行：实际在用的采集设备 + 默认播放设备（winTTS 走系统默认播放，不选设备）。"""
+    sd = _import_sd()
+    try:
+        out_i = sd.default.device[1]
+        out = f"#{out_i} {sd.query_devices(out_i)['name']}" if out_i is not None and out_i >= 0 else "无"
+    except Exception as e:
+        out = f"查询失败({type(e).__name__})"
+    return f"mic=#{mic.device_index} {mic.device_name_resolved} | speaker={out}"
 
 
 class MicSource:
@@ -118,14 +129,13 @@ class MicSource:
         self.consec_err = 0
         self.device_index: Optional[int] = None
         self.device_name_resolved: Optional[str] = None
-        self.is_hand_free = False
         self._spec = device_name
         self._stream = None
 
     def start(self):
         sd = _import_sd()
-        idx, name, hf = resolve_device(self._spec)
-        self.device_index, self.device_name_resolved, self.is_hand_free = idx, name, hf
+        idx, name = resolve_device(self._spec)
+        self.device_index, self.device_name_resolved = idx, name
         self._stream = sd.InputStream(
             samplerate=SR, channels=1, dtype="float32",
             device=idx, blocksize=BLOCK, callback=self._cb,
@@ -174,7 +184,6 @@ class MicSource:
             "err": self.err_count,
             "dropped": {n: q.dropped for n, q in self.sinks.items()},
             "device": self.device_name_resolved,
-            "hands_free": self.is_hand_free,
         }
 
 

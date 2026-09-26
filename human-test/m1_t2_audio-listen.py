@@ -70,8 +70,8 @@ def main():
 
     mic = MicSource(device_name=spec)
     mic.start()
-    print(f"\n[录音] 设备: #{mic.device_index} {mic.device_name_resolved} "
-          f"(hands_free={mic.is_hand_free})  {args.seconds:.0f}s  {SR}Hz/mono/int16")
+    print(f"\n[录音] 设备: #{mic.device_index} {mic.device_name_resolved}  "
+          f"{args.seconds:.0f}s  {SR}Hz/mono/int16")
     print("  3 秒后开始 —— 请准备拍掌...")
     wd = StallWatchdog(mic, WatchdogConfig(), started_at=time.monotonic())
     time.sleep(3)

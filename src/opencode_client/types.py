@@ -11,6 +11,7 @@ class OcConfig:
     home: Path = Path("tools") / "oc2-home"        # XDG 隔离根（data/config/state/cache）
     directory: str = "."                            # 语音会话工作区（location）
     model: str | None = None    # None=v2 默认(opencode 免费池, 用户拍板自带 key 方案)
+    agent: str | None = None    # 如 "voice"=专用语音助手 agent(第1轮优化#5)
     manage_serve: bool = True                       # False=attach 已有 url
     url: str | None = None
     password: str | None = None                     # manage_serve=False 时必填(若开密码)

@@ -257,6 +257,20 @@ def test_rest_assistant_final_text():
     asyncio.run(run())
 
 
+def test_rest_final_text_direction_pinned_by_fixture():
+    """T4 回归钉：真机 /message 返回"新→旧"，取反方向会拿到上一轮答案。"""
+    async def run():
+        body = json.loads((FIX / "m6_v2016_msgs_turn2.json").read_text(encoding="utf-8"))
+        assert body["data"][0]["type"] == "idle"               # 证明确是新→旧
+        r = rest_of(lambda req: httpx.Response(200, json=body))
+        text, _ = await r.assistant_final_text("s1")
+        assert text.startswith("在数字游戏中") and len(text) == 569   # 本轮正文
+        assert text != "收到"                                   # "收到"=上一轮答案，方向错就会拿到它
+        assert "We need" not in text                           # 同条消息里的 reasoning part 不得混入
+        await r.aclose()
+    asyncio.run(run())
+
+
 # ---------- serve.py ----------
 def test_parse_ready():
     assert parse_ready('{"url":"http://127.0.0.1:5555"}') == "http://127.0.0.1:5555"

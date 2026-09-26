@@ -48,7 +48,8 @@ class OpencodeClient:
 
     async def session_new(self, title: Optional[str] = None) -> str:
         sid = await self._rest.session_create(title or f"voice-{int(time.time())}",
-                                              self.cfg.directory, self.cfg.model)
+                                              self.cfg.directory, self.cfg.model,
+                                              self.cfg.agent)
         self._hub.own.add(sid)
         return sid
 

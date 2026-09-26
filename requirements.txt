@@ -1,0 +1,4 @@
+# 增量运行依赖（**不是全量清单**：torch / sherpa-onnx / sounddevice / numpy / psutil 等历史原因未登记，待补）。
+# 本机 pip 有全局 global.target=F:\python-packages 且该目录不在 sys.path → 普通 pip install 装了等于没装，
+# 必须： .\.venv\Scripts\python.exe -m pip install -r requirements.txt --target .venv\Lib\site-packages -i https://mirrors.aliyun.com/pypi/simple/
+websockets>=15,<18

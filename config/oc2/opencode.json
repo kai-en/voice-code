@@ -1,6 +1,27 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "skill": { "wow-kb": "allow" }
+  "model": "alibaba-token-plan-cn/qwen3.8-flash",
+  "providers": {
+    "alibaba-token-plan-cn": {
+      "settings": {
+        "apiKey": "{file:D:/work/voice-code/tools/oc2-home/secrets/alibaba.key}"
+      }
+    }
+  },
+  "permissions": [
+    { "action": "skill", "resource": "*", "effect": "allow" },
+    { "action": "webfetch", "resource": "*", "effect": "allow" },
+    { "action": "websearch", "resource": "*", "effect": "allow" },
+    { "action": "edit", "resource": "*", "effect": "deny" }
+  ],
+  "mcp": {
+    "servers": {
+      "playwright": {
+        "type": "local",
+        "command": ["npx", "-y", "@playwright/mcp@latest", "--browser", "chrome", "--executable-path", "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "--user-data-dir", "D:\\work\\voice-code\\tools\\oc2-home\\playwright-profile"],
+        "codemode": false,
+        "timeout": { "startup": 90000, "catalog": 30000 }
+      }
+    }
   }
 }

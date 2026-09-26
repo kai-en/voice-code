@@ -8,7 +8,7 @@ verified: { date: 2026-09-25, by: "deepthink-0925(方案)" }
 # 编写指南 v1（浓缩自 deepthink 方案稿，2026-09-25）
 
 ## 消费模型（三层，知识本体永不常驻上下文）
-AGENTS.md 常驻纪律(≤10行) → wow-kb skill(检索协议+兜底话术) → 单条 md(grep 定位、read 单文件)。oc2 回答经 TTS：口播 ≤3 句、无表格代码；知识库是书面层，口播是压缩层，两层分开写。
+AGENTS.md 常驻纪律(≤10行) → wow-kb skill(查库+自主研究五步协议+证据分级+兜底话术) → 单条 md(grep 定位、read 单文件)。本库定位=**元知识库**：具体条目只是高频事实缓存与写法示例，不是可答范围白名单；库里没有的问题 oc2 按 SKILL 第 3 步现查现答（只读不落库，回填归离线侧）。oc2 回答经 TTS：口播 ≤3 句、无表格代码；知识库是书面层，口播是压缩层，两层分开写。
 
 ## 目录切分决策
 | 轴 | 处理 | 理由 |
@@ -41,6 +41,7 @@ frontmatter 必含：id, title, aliases, applies{line,versions,servers,build_ref
 10. URL 防改写：中转会替换模型输出里的完整 URL（403/货不对板/Ran code 见 routify 即中招）→ 用 evaluate 分片拼接或 bash 直连；routify 残留禁再用、禁当目标 URL 入库；一次改写≠目标站不可达，换法重试后再定论（详见 playwright skill §3）。
 
 ## 更新机制
+**删改与新增同级**：生态级事实变化（插件政策、站点停运等）发生时，当轮同步修订所有受影响条目（历史降级或删除），核验日志记理由；对直播不再有价值的内容直接删文件+INDEX 除名（git 保历史），禁止新旧口径并存、只堆不删。
 触发式重验矩阵在 `_meta/freshness.md`；条目 90 天自动降 unverified。
 oc2 只读；新结论/错答由离线侧（人/deepthink）回填源目录再部署，**永改源不改部署区**（tools/ 被 gitignore）。
 直播兜底四话术见 SKILL.md；兜底≠拒答：先给已核实部分再划边界。
@@ -52,3 +53,4 @@ oc2 只读；新结论/错答由离线侧（人/deepthink）回填源目录再�
 - auto-accept-invite 41 / party-invite-dialog 32 / quick-join 37 / disable-quick-join 27 / raids.spire-entry 26
 - addons/_catalog 21 / qa(防拉人) 13 / qa(尖塔) 13 / INDEX 19 / SKILL 17 / AGENTS 追加 5
 全部在预算内，无需解释项。
+- 勘误 2026-09-26（同日三修：元定位+研究工具面）：AGENTS 15 / SKILL 34。AGENTS 超 ≤10 预算：新增窗口纪律 3 行+URL 防改写 2 行（直播展示窗口与千问中转两个实测坑的常驻提醒，砍掉会复发事故）；SKILL 34/60 在预算内。待用户裁决是否再压缩 AGENTS。

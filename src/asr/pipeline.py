@@ -37,6 +37,7 @@ class AsrText:
     text: str
     ts: float
     dur_s: float
+    end_ts: float = 0.0      # 语音结束时刻(monotonic, 已扣 VAD 静音判定延迟)；0=未知
 
 
 def build_recognizer(cfg: AsrConfig):
@@ -77,10 +78,11 @@ class AsrWorker:
     """段队列 → 每段新建 stream(句间零历史, 官方契约) → decode → on_text。"""
 
     def __init__(self, recognizer, segments: DropOldestQueue,
-                 on_text: Callable[[AsrText], None]):
+                 on_text: Callable[[AsrText], None], min_silence: float = 0.6):
         self._rec = recognizer
         self._seg = segments
         self._on_text = on_text
+        self._sil = min_silence
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self.text_count = 0
@@ -98,7 +100,7 @@ class AsrWorker:
         if self._thread is not None:
             self._thread.join(timeout=1.0)
 
-    def decode_segment(self, samples, start: float) -> None:
+    def decode_segment(self, samples, seg_end: float) -> None:
         dur = samples.size / SR
         stream = self._rec.create_stream()
         stream.accept_waveform(SR, samples)
@@ -111,7 +113,8 @@ class AsrWorker:
             self.empty_count += 1
             return
         self.text_count += 1
-        self._on_text(AsrText(text=text, ts=time.time(), dur_s=round(dur, 2)))
+        self._on_text(AsrText(text=text, ts=time.time(), dur_s=round(dur, 2),
+                              end_ts=seg_end - self._sil))
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -163,6 +166,7 @@ def start_asr(cfg: AsrConfig, mic, on_text: Callable[[AsrText], None],
         min_silence_s=cfg.vad_min_silence_s,
         max_speech_s=cfg.vad_max_speech_s)),
         mic.sinks["vad"],
-        lambda s, st: segments.put((s, st)))
-    worker = AsrWorker(recognizer or build_recognizer(cfg), segments, on_text)
+        lambda s, en: segments.put((s, en)))
+    worker = AsrWorker(recognizer or build_recognizer(cfg), segments, on_text,
+                       min_silence=cfg.vad_min_silence_s)
     return AsrPipeline(vad, worker)

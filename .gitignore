@@ -16,3 +16,6 @@ bili-*.png
 tools/
 
 node_modules/
+
+# run.bat/stop.bat 运行时产物
+logs/

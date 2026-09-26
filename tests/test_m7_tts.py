@@ -5,9 +5,91 @@ import time
 import numpy as np
 
 from tts.tts import (Interrupted, SpeakFinish, SpeakStart, TtsConfig, TtsEngine,
-                     start_tts)
+                     WinTtsEngine, start_tts)
 
 SR = 44100
+
+
+class FakeStdin:
+    def __init__(self):
+        self.lines = []
+
+    def write(self, b):
+        self.lines.append(b.decode("utf-8"))
+
+    def flush(self):
+        pass
+
+
+class FakeStdout:
+    def __init__(self, lines, block_until_kill=False):
+        self._lines = list(lines)
+        self._block = block_until_kill
+        self._ev = threading.Event()
+
+    def kill_signal(self):
+        self._ev.set()
+
+    def readline(self):
+        if self._lines:
+            return (self._lines.pop(0) + "\n").encode("utf-8")
+        if self._block:
+            self._ev.wait(3.0)              # 模拟"句子仍在播"直到被 kill
+            return b""
+        return b""
+
+
+class FakeProc:
+    def __init__(self, stdout_lines, block_until_kill=False):
+        self.stdin = FakeStdin()
+        self.stdout = FakeStdout(stdout_lines, block_until_kill)
+        self.killed = False
+
+    def kill(self):
+        self.killed = True
+        self.stdout.kill_signal()
+
+
+def _wintts(lines, block_until_kill=False):
+    evs: list = []
+    procs = []
+
+    def popen(cmd, **kw):
+        p = FakeProc(list(lines), block_until_kill)
+        procs.append(p)
+        return p
+
+    e = WinTtsEngine(TtsConfig(backend="wintts"), evs.append, popen=popen)
+    return e, evs, procs
+
+
+def test_wintts_ready_and_finish_events():
+    e, evs, procs = _wintts(["READY", "OK", "OK"])
+    e.start()
+    assert e.ready.wait(3.0)
+    n = e.speak("第一句。第二句！")
+    assert n == 2
+    assert _wait(lambda: e.stats()["sent"] == 2)
+    assert [type(x).__name__ for x in evs] == ["SpeakStart", "SpeakFinish"] * 2
+    assert procs[0].stdin.lines[0].startswith("第一句")
+    e.shutdown()
+
+
+def test_wintts_stop_kills_and_drops_current():
+    # 第 2 句"仍在播"(readline 阻塞)时 stop: 杀进程、静默丢弃、不重播、不计数
+    e, evs, procs = _wintts(["READY", "OK"], block_until_kill=True)
+    e.start()
+    assert e.ready.wait(3.0)
+    e.speak("一。二。")
+    assert _wait(lambda: e.stats()["sent"] == 1)
+    time.sleep(0.1)                          # 让 worker 进入第二句 readline
+    e.stop()
+    time.sleep(0.3)
+    assert procs[0].killed
+    assert e.stats()["sent"] == 1            # 第二句被丢, 未重播计成
+    assert sum(isinstance(x, SpeakFinish) for x in evs) == 1
+    assert procs[0].stdin.lines.count("二\n") <= 1   # 最坏只写一次就被掐, 不重播第二次
+    e.shutdown()
 
 
 class FakeModel:

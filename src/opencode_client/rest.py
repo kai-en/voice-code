@@ -18,11 +18,14 @@ class OcRest:
         return r.json()
 
     async def session_create(self, title: str, directory: str,
-                             model: Optional[str] = None) -> str:
+                             model: Optional[str] = None,
+                             agent: Optional[str] = None) -> str:
         body: dict = {"title": title, "location": {"directory": directory}}
         if model:
             pid, _, mid = model.partition("/")
             body["model"] = {"providerID": pid, "id": mid}   # v2.0.16 实测键名 id
+        if agent:
+            body["agent"] = agent
         r = await self._c.post("/api/session", json=body)
         r.raise_for_status()
         return r.json()["data"]["id"]
@@ -51,9 +54,9 @@ class OcRest:
         return body or []
 
     async def assistant_final_text(self, sid: str) -> tuple[str, Optional[str]]:
-        """终稿校准：最后一条 assistant 消息 → (text, error|None)。"""
+        """终稿校准：最新一条 assistant 消息 → (text, error|None)。"""
         err = None
-        for item in reversed(await self.messages(sid)):   # 倒序取最后一条非空 text（多 step 回合末条可能只有 tool part）
+        for item in await self.messages(sid):    # 实测该接口返回"新→旧"(fixtures/m6_v2016_msgs_turn2.json)，正序第一条非空即最新
             if item.get("type") != "assistant":
                 continue
             parts = item.get("content") or []
