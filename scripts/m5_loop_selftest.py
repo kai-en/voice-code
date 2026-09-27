@@ -18,6 +18,8 @@ class FakeAsr:
         self.active = []
     def set_active(self, on):
         self.active.append(on)
+    def set_hotwords(self, words):
+        return ""
 
 
 class FakeTts:

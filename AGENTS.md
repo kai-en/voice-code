@@ -18,10 +18,10 @@
   `.\.venv\Scripts\python.exe -m pip install -r requirements.txt --target .venv\Lib\site-packages -i https://mirrors.aliyun.com/pypi/simple/`
 - 新增运行依赖登记进 `requirements.txt`（现仅 websockets；torch/sherpa-onnx/sounddevice 等历史依赖未登记，待补）。
 
-## 播报期自听（硬件未到，禁止改代码）
+## 播报期自听（硬件 AEC 已在场，仍禁止改代码）
 
-- 助手外放被自家麦克风收回去（回采/自问自答/误打断）**不是软件缺陷**：本机还没有带硬件 AEC 的麦，`_is_echo` 去重只是缓解不是消除。设计口径见 `docs/0925工作/m5-orchestrator-design.md` §6「假设声明：硬件 AEC 在场，播报期自听误打断为已知可接受项（观察计数，不设防护）」。
-- 因此**禁止**为自听新增防护逻辑（额外门限、播放期禁麦、文本相似度加强等）；等硬件到货后按人审脚本实测再议。
+- 助手外放被自家麦克风收回去（回采/自问自答/误打断）**不是软件缺陷**：本机现已配带硬件 AEC 的麦+音箱一体机，回声消除归硬件管；代码里也没有回声去重（`_is_echo` 已随 M10/M11 重构删除）。设计口径见 `docs/0925工作/m5-orchestrator-design.md` §6「假设声明：硬件 AEC 在场，播报期自听误打断为已知可接受项（观察计数，不设防护）」。
+- 因此**禁止**为自听新增防护逻辑（额外门限、播放期禁麦、文本相似度加强等）；若观察到误打断仍频发，先查硬件链路（AEC 参考通道、音量、走线），软件侧只记录不设防。
 
 ## 本地控制台（M11）
 

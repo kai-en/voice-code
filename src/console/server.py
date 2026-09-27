@@ -1,5 +1,5 @@
 # M11 本地 WebSocket 文本通道：只绑 127.0.0.1 单端口；**不 serve HTML**（非升级请求由库默认回 426）。
-# 入帧 ask/stop/perm/ping，其余（含非 JSON 裸文本）一律按 ask 兜底并回 note；出帧见 frames.py。
+# 入帧 ask/stop/perm/ping/hotwords(M14 手动装填)，其余（含非 JSON 裸文本）一律按 ask 兜底并回 note；出帧见 frames.py。
 # 注入唯一出口 orch.post(TextIn)；出流唯一入口 tap→broadcast（同 loop 线程，禁跨线程）。设计 §3。
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import os
 from websockets.asyncio.server import broadcast, serve
 from websockets.exceptions import ConnectionClosed
 
-from orchestrator.core import PERM, TextIn
+from orchestrator.core import PERM, HotwordsSet, TextIn
 
 from . import frames
 
@@ -102,6 +102,12 @@ class ConsoleServer:
                 return {"t": "err", "code": "not_in_perm", "state": self.orch.state}
             self.orch.post(TextIn(text="允许" if str(f.get("decision")) != "reject" else "拒绝",
                                   src="console"))
+            return None
+        if t == "hotwords":                                # M14 手动注入兜底，须在 ask 兜底之前
+            fld = f.get("words")
+            if not isinstance(fld, list):
+                return {"t": "err", "code": "words_required"}
+            self.orch.post(HotwordsSet(words=tuple(fld)))
             return None
         fld = f.get("text")
         if t == "ask":                                  # 显式 ask 不做"整帧兜底"，空文本就是空文本

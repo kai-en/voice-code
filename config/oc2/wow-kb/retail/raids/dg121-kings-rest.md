@@ -2,6 +2,7 @@
 id: retail.raids.dg121-kings-rest
 title: 诸王之眠（BfA老本·S2回归）四首领详略
 aliases: [诸王之眠, 猪王之眠, 诸王之门, 竹王之眠, 诸王, 达萨]
+hotwords: [诸王之眠, 黄金风蛇, 始祖达萨]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

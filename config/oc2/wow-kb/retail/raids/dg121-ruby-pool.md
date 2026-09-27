@@ -2,6 +2,7 @@
 id: retail.raids.dg121-ruby-pool
 title: 红玉新生法池（DF老本·S2回归）三首领详略
 aliases: [红玉新生法池, 红雨新生法池, 红玉心法池, 红玉, 法池]
+hotwords: [红玉新生法池, 梅莉杜莎, 柯姬雅]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

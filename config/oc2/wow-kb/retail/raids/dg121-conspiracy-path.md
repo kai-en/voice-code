@@ -2,6 +2,7 @@
 id: retail.raids.dg121-conspiracy-path
 title: 密谋小径（S2池）四首领详略
 aliases: [密谋小径, 秘密小径, 米谋小径, 蜜谋, 迷你小径, 小径]
+hotwords: [密谋小径, 凯斯媞亚, 萨祖克斯]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

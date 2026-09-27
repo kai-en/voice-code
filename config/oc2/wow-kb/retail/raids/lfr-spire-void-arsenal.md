@@ -2,6 +2,7 @@
 id: retail.raids.lfr-spire-void-arsenal
 title: 随机团「虚空武备」=虚影尖塔第1区（三BOSS+治疗要点）
 aliases: [虚空武备, 虚影尖塔随机, LFR尖塔, 元首阿福扎恩, 弗拉西乌斯, 陨落之王萨哈达尔, 随机团一区]
+hotwords: [虚空武备, 虚影尖塔, 阿福扎恩, 弗拉西乌斯, 萨哈达尔]
 applies:
   line: retail
   versions: ">=12.0"

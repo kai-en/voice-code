@@ -67,8 +67,15 @@ def test_normalize_peak():
 class FakeAsr:
     def __init__(self):
         self.active = None
+        self.hotwords = []
     def set_active(self, on):
         self.active = on
+    def set_hotwords(self, words):
+        from asr.pipeline import normalize_hotwords
+        csv = normalize_hotwords(list(words) if isinstance(words, (list, tuple)) else words)
+        if csv is not None:
+            self.hotwords.append(csv)
+        return csv
 
 
 class FakeTts:
@@ -228,6 +235,7 @@ def test_barge_in_appends_pending_half_sentence():
             orch.collect_deadline = now[0]
             await orch.tick(); await asyncio.sleep(0.02)
             assert orch.state == RUNNING
+            orch.post(OcText("ses_1", "收到。", final=False)); await asyncio.sleep(0.02)   # 出声→回答期
             orch.buf = "竞态里攒下的半句"
             orch.post(AsrText("新指令", 0, 0.5)); await asyncio.sleep(0.05)
             assert orch.buf == "竞态里攒下的半句\n新指令"
@@ -262,6 +270,7 @@ def test_running_state_set_before_send_returns():
         tk = asyncio.create_task(orch.tick())
         await oc.entered.wait(); await asyncio.sleep(0.02)
         assert orch.state == RUNNING                  # send 还没返回就已 RUNNING
+        orch.post(OcText("ses_1", "先应一声。", final=False)); await asyncio.sleep(0.02)   # 出声→回答期
         orch.post(AsrText("补充半句", 0, 0.5))
         await asyncio.sleep(0.25)
         assert oc.interrupts == ["ses_1"] and orch.state == COLLECT
@@ -304,6 +313,7 @@ def test_barge_in_resend_carries_previous_question():
             orch.collect_deadline = now[0]
             await orch.tick(); await asyncio.sleep(0.02)                 # X1 发出
             assert orch._sent == "我在打幽魂角斗士"
+            orch.post(OcText("ses_1", "收到。", final=False)); await asyncio.sleep(0.02)   # 出声→回答期
             orch.post(AsrText("但是我们也会互相打倒", 0, 0.5))            # barge-in 打断
             await asyncio.sleep(0.02)
             orch.post(OcTurnDone("ses_1", "interrupted", "", None, 0))   # 陈旧终 → 早退, _sent 保留
@@ -354,6 +364,7 @@ def test_topic_change_barge_in_still_prepends():
         try:
             orch.collect_deadline = now[0]
             await orch.tick(); await asyncio.sleep(0.02)
+            orch.post(OcText("ses_1", "收到。", final=False)); await asyncio.sleep(0.02)   # 出声→回答期
             orch.post(AsrText("停，换个事", 0, 0.5)); await asyncio.sleep(0.02)
             orch.post(OcTurnDone("ses_1", "interrupted", "", None, 0)); await asyncio.sleep(0.02)
             orch.collect_deadline = now[0]
@@ -361,6 +372,66 @@ def test_topic_change_barge_in_still_prepends():
             assert oc.sent[-1][1] == "长任务\n停，换个事"
         finally:
             fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+# ---------- 打断门控（0927 需求: docs/0927工作/kws-gated-llm-interrupt-req.md） ----------
+def test_thinking_phase_ignores_asr():
+    """RUNNING 思考期(未出声)：任意 ASR 出句一律无响应——不打断、不入 buf、状态不动。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("x", 0), AsrText("长任务", 0, 0.5)])
+        try:
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert orch.state == RUNNING
+            for i in range(3):
+                orch.post(AsrText(f"跟观众说话{i}", 0, 0.5)); await asyncio.sleep(0.02)
+            assert oc.interrupts == [] and tts.stops == 0
+            assert orch.state == RUNNING and orch.buf == "" and len(oc.sent) == 1
+        finally:
+            fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+def test_kws_interrupts_thinking_phase_and_collects_next():
+    """思考期 KWS 命中→打断(不念 ack, Q1)；激活词转写剥空不污染 buf；后续句正常采集。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("x", 0), AsrText("长任务", 0, 0.5)])
+        try:
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            orch.post(KwsHit("小码小码", 0)); await asyncio.sleep(0.02)
+            assert orch.state == COLLECT and oc.interrupts == ["ses_1"] and tts.stops >= 1
+            assert tts.spoken == ["在呢。"]                               # 打断不另念 ack
+            orch.post(AsrText("小码小码", 0, 0.5)); await asyncio.sleep(0.02)
+            assert orch.buf == ""                                         # strip_wake 后为空 → 不入 buf
+            orch.post(AsrText("停，换个事", 0, 0.5)); await asyncio.sleep(0.02)
+            assert orch.buf == "停，换个事" and orch.collect_deadline == now[0] + 3.0
+        finally:
+            fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+def test_kws_hit_in_collect_or_perm_still_noop():
+    """会话中(COLLECT/PERM) KWS 再响仍无动作——唤醒只属于 IDLE。"""
+    async def _run():
+        orch, asr, tts, oc, _ = build()
+        task = await drive(orch, [KwsHit("x", 0)])
+        try:
+            orch.post(AsrText("说一句", 0, 0.5)); await asyncio.sleep(0.02)
+            orch.post(KwsHit("小码小码", 0)); await asyncio.sleep(0.02)
+            assert orch.state == COLLECT and orch.buf == "说一句"
+            assert tts.spoken == ["在呢。"] and oc.interrupts == []
+        finally:
             await finish(task, orch)
     asyncio.run(_run())
 
@@ -407,6 +478,7 @@ def test_barge_in_stops_and_recollects():
             orch.collect_deadline = now[0]
             await orch.tick(); await asyncio.sleep(0.02)
             assert orch.state == RUNNING
+            orch.post(OcText("ses_1", "收到。", final=False)); await asyncio.sleep(0.02)   # 出声→回答期
             orch.post(AsrText("停，换个事", 0, 0.5))
             await asyncio.sleep(0.05)
             assert orch.state == COLLECT and oc.interrupts == ["ses_1"]
@@ -424,6 +496,7 @@ def test_turn_busy_guard_no_double_send():
             orch.collect_deadline = now[0]
             await orch.tick(); await asyncio.sleep(0.02)
             assert orch.state == RUNNING            # send_fut 未完成
+            orch.post(OcText("ses_1", "收到。", final=False)); await asyncio.sleep(0.02)   # 出声→回答期
             orch.post(AsrText("闭嘴", 0, 0.5)); await asyncio.sleep(0.02)   # barge-in
             orch.post(OcTurnDone("ses_1", "interrupted", "", None, 0))     # 旧回合终
             await asyncio.sleep(0.02)

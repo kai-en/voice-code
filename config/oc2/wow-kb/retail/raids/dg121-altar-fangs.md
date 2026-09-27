@@ -2,6 +2,7 @@
 id: retail.raids.dg121-altar-fangs
 title: 毒牙祭坛（S2新本）三首领详略
 aliases: [毒牙祭坛, 尖牙圣坛, 独牙祭坛, 毒牙祭台, 独牙, 毒牙, Altar of Fangs, 阿塔乌特克地窟]
+hotwords: [毒牙祭坛, 盘卷蛇岛, 扭缠盘蛇, 祖尔加]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

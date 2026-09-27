@@ -27,6 +27,7 @@ qa/ 是"视图"不是"源"：问法+口播底稿+权威条目指针，禁止写�
 ## 条目模板（照抄 auto-accept-invite.md 即可）
 必含节：TL;DR(≤3行含方向) / 方向性声明(作用于谁·哪侧生效·不控制什么，三项强制) / 机制细节 / 版本差异 / 常见误区 / 相关条目 / 核验日志(只追加)。
 frontmatter 必含：id, title, aliases, applies{line,versions,servers,build_ref,mirror_ahead_of_cn}, mechanism{builtin|addon|gamerule}, status{verified|unverified|outdated}, superseded_by, evidence[{ref,url,note}], verified{date,by}。
+可选节 hotwords（M14 ASR 动态热词）：`hotwords: [词1,词2,...]`，选词纪律=只收专名生僻**正名**（误听形留在同音消歧表，永不进 hotwords）、≤8 词、汉字合计 ≤36、入库前跑 scripts/m14_hotwords_probe.py 改表实测 <48 tokens。
 
 ## 红线（各对应一类已发生事故）
 1. evidence.ref 必须 `file:line@build`，裸行号禁入库（镜像会随 PTR 漂移）。

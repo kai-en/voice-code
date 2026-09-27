@@ -2,6 +2,7 @@
 id: retail.raids.lfr-sporefall-rotmire
 title: 孢陨幽境（随机团）=单BOSS团本「腐沼」+简要攻略
 aliases: [孢陨幽境, 腐沼, 孢陨, 真菌巨人, Sporefall, Rotmire, 哈籁恩达尔团本, 12.07团本]
+hotwords: [孢陨幽境, 腐沼, 真菌巨人]
 applies:
   line: retail
   versions: ">=12.0.7"

@@ -2,6 +2,7 @@
 id: retail.raids.dg121-nalak-cave
 title: 纳洛拉克的洞穴（S2池）三首领详略
 aliases: [纳洛拉克的洞穴, 纳洛拉克洞穴, 那洛拉克, 纳若拉克, 洛拉克洞穴, 洞穴]
+hotwords: [纳洛拉克的洞穴, 囤宝狂人]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

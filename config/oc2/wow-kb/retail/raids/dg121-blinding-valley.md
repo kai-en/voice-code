@@ -2,6 +2,7 @@
 id: retail.raids.dg121-blinding-valley
 title: 夺目谷（S2池）四首领详略
 aliases: [夺目谷, 多姆古, 夺目鼓, 杜牧谷, 朵木谷]
+hotwords: [夺目谷, 科兹齐特, 梅提克, 莱克西, 伊库兹]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

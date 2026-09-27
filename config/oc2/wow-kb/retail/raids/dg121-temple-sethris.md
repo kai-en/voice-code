@@ -2,6 +2,7 @@
 id: retail.raids.dg121-temple-sethris
 title: 塞塔里斯神庙（BfA老本·S2回归）四首领详略
 aliases: [塞塔里斯神庙, 赛塔里斯神庙, 色塔里斯神庙, 塞塔利寺, 神庙]
+hotwords: [塞塔里斯神庙, 阿德里斯, 阿斯匹克斯, 米利克萨]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

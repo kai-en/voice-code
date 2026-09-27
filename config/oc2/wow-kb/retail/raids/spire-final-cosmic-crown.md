@@ -2,6 +2,7 @@
 id: retail.raids.spire-final-cosmic-crown
 title: 宇宙之冕=虚影尖塔尾王（虚空奥蕾莉亚）三阶段+治疗职责
 aliases: [宇宙之冕, 虚影尖塔尾王, 尾王宇宙之冕, 虚空奥蕾莉亚, 尖塔6号, 奥蕾莉亚团本boss]
+hotwords: [宇宙之冕, 虚影尖塔, 奥蕾莉亚]
 applies:
   line: retail
   versions: ">=12.0"

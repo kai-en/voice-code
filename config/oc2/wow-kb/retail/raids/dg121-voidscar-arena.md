@@ -2,6 +2,7 @@
 id: retail.raids.dg121-voidscar-arena
 title: 虚空之痕竞技场（S2池）三首领+路线详略
 aliases: [虚空之痕竞技场, 虚空之痕, 虚空之城竞技场, 虚空之恒, 竞技场本]
+hotwords: [虚空之痕竞技场, 塔兹拉尔]
 applies: { line: retail, versions: "12.1 (S2)", servers: [cn], build_ref: "-" }
 mechanism: builtin
 status: unverified(多源交叉)

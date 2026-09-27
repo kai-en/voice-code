@@ -2,6 +2,7 @@
 id: retail.raids.spire-story-mode-entry
 title: 虚影尖塔·剧情模式进入流程
 aliases: [虚影尖塔, 剧情模式, 温吉里昂, 现实击碎者, 立足之处, 先锋军冲锋, 临影口, 图拉扬, 单人身披幻化]
+hotwords: [虚影尖塔, 剧情模式, 温吉里昂]
 applies:
   line: retail
   versions: ">=12.0"

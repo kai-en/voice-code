@@ -1,7 +1,9 @@
 # M5 编排器核心：IDLE/COLLECT/RUNNING/PERM 四态，单 asyncio.Queue 串行 dispatch。
-# 全双工（用户拍板）：唤醒后 VAD 恒开；RUNNING 期 ASR 出句=打断；3s 静默成轮；退出仅 voice-end。
+# 全双工（用户拍板）：唤醒后 VAD 恒开；3s 静默成轮；退出仅 voice-end。
+# RUNNING 打断分级（0927 需求 docs/0927工作/kws-gated-llm-interrupt-req.md）：
+#   回答期(本回合已出声) ASR 出句=打断；思考期(未出声) ASR 一律无视，仅 KWS 命中可打断 LLM。
 # 第1轮优化：TurnDone 经 _await_turn 桥回队列；每事件/转移一行结构化日志。
-# 播报期自听（回采）不设软件防护——等带硬件 AEC 的麦（AGENTS.md「播报期自听」）。
+# 播报期自听（回采）不设软件防护——硬件 AEC 麦已在场，频发先查硬件链路（AGENTS.md「播报期自听」）。
 from __future__ import annotations
 
 import asyncio
@@ -23,6 +25,13 @@ class TextIn:
 
     text: str
     src: str = "console"
+
+
+@dataclass(frozen=True)
+class HotwordsSet:
+    """M14 控制台手动注入（{t:"hotwords", words:[...]}，注入唯一出口仍是 orch.post，设计 §4）。"""
+
+    words: tuple
 
 
 @dataclass
@@ -51,6 +60,8 @@ def _brief(ev) -> str:
         return f"{ev.action}"
     if cls == "KwsHit":
         return ev.keyword
+    if cls == "HotwordsSet":
+        return ",".join(ev.words)[:24]
     return ""
 
 
@@ -83,6 +94,7 @@ class Orchestrator:
         self._turn_fut = None           # 未回收的回合 Future（串行护栏）
         self._rid = None                # 待答权限 request id
         self.spoken_len = 0             # 本回合已播字数（终稿对账）
+        self._spoke_this_turn = False   # 本回合是否已出声：False=思考期(ASR 打断需 KWS)，True=回答期(任意 ASR 可打断)
         self._rest = ""                 # 本回合模型话里还没成句的尾巴（与 self.buf 对称）
         self._sent = ""                 # 已发出但那轮被打断没答完的提问；下次前置 → 打断=追加重问
         self._q: asyncio.Queue = asyncio.Queue()
@@ -119,11 +131,21 @@ class Orchestrator:
             self._tap("state", state)
         self.state = state
         self.asr.set_active(state != IDLE)          # 全双工：仅 IDLE 关 VAD
+        if state == IDLE:
+            self.asr.set_hotwords([])               # M14：退会话必须收走热词窗口（无 TTL，IDLE 即清）
+            self._log("hotwords cleared@IDLE")
 
     def _speak(self, text: str):
         self._log(f"speak: {text[:24]}")
         self._tap("speak", text)
         self.tts.speak(text)
+
+    def _apply_hotwords(self, words):
+        csv = self.asr.set_hotwords(words)
+        if csv is None:
+            self._log(f"hotwords rejected: {str(words)[:60]}")
+            return
+        self._log(f"hotwords applied: {csv or '(cleared)'}")   # 回执只进 log(用户 0927 拍板)，不进 ev/tap
 
     async def run(self):
         self._loop = asyncio.get_running_loop()
@@ -159,9 +181,11 @@ class Orchestrator:
                 await self._collect_fire()
             return
         if cls == "KwsHit":
-            if self.state == IDLE:                   # 会话中 KWS 再响=无效(用户已在线)
+            if self.state == IDLE:                   # 会话中(COLLECT/PERM) KWS 再响=无效(用户已在线)
                 self._speak(self.cfg.ack_text)
                 self._go(COLLECT)
+            elif self.state == RUNNING:              # 思考期打断 LLM 的唯一通道(不念 ack, Q1)
+                self._barge_in("")
         elif cls == "AsrText":
             text = strip_wake(ev.text)
             if self.state == COLLECT and text:
@@ -169,7 +193,9 @@ class Orchestrator:
                 base = ev.end_ts if ev.end_ts > 0 else self.clock()   # 锚在"说完"，不是"解码完"
                 self.collect_deadline = base + self.cfg.collect_silence_s
             elif self.state == RUNNING:
-                self._barge_in(text)
+                if self._spoke_this_turn:            # 回答期(R4)：主播抢话=不满意, 断
+                    self._barge_in(text)
+                # 思考期(R3)：主播在对观众说话, oc2 不许插话——不响应不入 buf(tap 已镜像, Q2 可见)
             elif self.state == PERM:
                 await self._answer_perm(text)
         elif cls == "OcText" and self.state in (RUNNING, PERM) and not ev.final:
@@ -178,12 +204,18 @@ class Orchestrator:
             for s in sents:
                 self._speak(s)
                 self.spoken_len += len(s)
+                self._spoke_this_turn = True         # 首次出声 → 本回合进入回答期
         elif cls == "OcPermission" and self.state in (RUNNING, PERM):
             self._rid = ev.request_id
             self.tts.stop()
             self._speak(self.cfg.perm_prompt.format(action=ev.action))
             self._go(PERM)
             self.perm_deadline = self.clock() + self.cfg.perm_timeout_s
+        elif cls == "OcTool" and ev.name == "set-hotwords" and ev.phase == "called" \
+                and self.state != IDLE:        # 迟到帧 guard: IDLE 后不复活词表（console 手动注入不受此限）
+            self._apply_hotwords((ev.tool_input or {}).get("words"))   # M14 SSE 旁观, 与 voice-end 同构
+        elif cls == "HotwordsSet":                         # M14 控制台手动注入
+            self._apply_hotwords(list(ev.words))
         elif cls == "OcTool" and ev.name == "voice-end" and ev.phase == "called":
             self.pending_exit = True                 # 唯一退出通道(M6.1)
         elif cls == "OcTurnDone":
@@ -203,6 +235,7 @@ class Orchestrator:
             text = self._sent + "\n" + text
         self.collect_deadline = 0.0
         self.spoken_len, self._rest = 0, ""
+        self._spoke_this_turn = False                # 新回合 = 思考期起步
         self._turn_fut = _SENDING                    # await 期间不得再发第二句(M6 同 session 禁并发)
         self._go(RUNNING)                            # 先转态：await 期间新到的句子按"打断"处理，不当继续采集
         try:

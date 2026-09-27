@@ -8,16 +8,13 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from audio_capture.capture import DropOldestQueue
 from asr.vad_sentence import VadConfig, VadSentencer, build_vad
 
 SR = 16000
 QWEN3_DIR = "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
-# WoW 热词 (qwen3 system-prompt 上下文偏置; 中文按字 ≈ token 上界, 官方 ≥48 token WARN)
-WOW_HOTWORDS = ("周常,英雄难度,龙希尔,虚空侵攻,盘卷蛇岛,"
-                "圣骑士,潜行者,死亡骑士,萨满,恶魔猎手")
 SENSEVOICE_DIR = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17"
 # 语言前缀防御 (impl 已自动剥离, #3472; 此为保险丝): "language Chinese<asr_text>..."
 _PREFIX_RE = re.compile(r"^\s*language\s+\S+?<asr_text>")
@@ -29,7 +26,7 @@ class AsrConfig:
     model_dir: Path = Path("models") / QWEN3_DIR
     silero_vad_model: Path = Path("models/silero_vad.onnx")
     num_threads: int = 2
-    hotwords: str = WOW_HOTWORDS             # 逗号分隔, 仅 qwen3; ≥48 token 官方 WARN
+    hotwords: str = ""                       # 2026-09-27 撤热词: 无人声段会幻听, 逐词复读 prompt 里的热词表(真机 18:18:44)
     vad_min_silence_s: float = 0.6
     vad_max_speech_s: float = 20.0
     max_new_tokens: int = 192                # 默认 128 对 20s 句有截断 WARN 风险
@@ -77,6 +74,36 @@ def build_recognizer(cfg: AsrConfig):
     raise ValueError(f"未知 asr.model: {cfg.model} (可选 qwen3|sensevoice)")
 
 
+HW_MAX_WORDS = 8        # M14 设计: 词数上限(截断保留前 8)。单词≤12 字 → csv 最长 8×12+7=103, 结构上到不了 max_total_len 档
+HW_WARN_CHARS = 36      # 汉字合计软线(0927 审计: 34字生僻表=40t, 36字≈48t 线)
+
+
+def normalize_hotwords(words) -> Optional[str]:
+    """M14 校验唯一落点: list[str]→CSV 快照。返回 None=整表拒绝(保留旧表), ""=清空。"""
+    if not isinstance(words, (list, tuple)):
+        return None
+    words = list(words)[:64]                     # 先截: console 手滑粘贴超长数组时不在事件循环里 O(n²)
+    seen: list[str] = []
+    for w in words:
+        if not isinstance(w, str):
+            continue
+        w = w.strip()
+        if not w or len(w) > 12 or any(c in w for c in ", \t\r\n") or any(ord(c) < 0x20 for c in w):
+            continue
+        if w not in seen:
+            seen.append(w)
+    out = [w for w in seen if not any(w != o and w in o for o in seen)]   # 互含留长
+    if not out:
+        return "" if not words else None
+    if len(out) > HW_MAX_WORDS:
+        print(f"[asr] hotwords truncated {len(out)}->{HW_MAX_WORDS}", flush=True)
+        out = out[:HW_MAX_WORDS]
+    csv = ",".join(out)
+    if sum(len(w) for w in out) > HW_WARN_CHARS:
+        print(f"[asr] hotwords chars={sum(len(w) for w in out)} 超软线{HW_WARN_CHARS}(≈48token)", flush=True)
+    return csv
+
+
 class AsrWorker:
     """段队列 → 每段新建 stream(句间零历史, 官方契约) → decode → on_text。"""
 
@@ -93,6 +120,8 @@ class AsrWorker:
         self.err_count = 0
         self.rtf_last = -1.0
         self.rtfs: list[float] = []
+        self.pseudo_count = 0            # 哨兵(M14 §6): 结果完全由当前词表拼成的次数, 纯观测不拦截
+        self._hotwords = ""                  # M14 常驻词表快照(不可变 str, 写者=AsrPipeline 门面, 跨线程赋值原子)
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, daemon=True, name="asr")
@@ -106,6 +135,11 @@ class AsrWorker:
     def decode_segment(self, samples, seg_end: float) -> None:
         dur = samples.size / SR
         stream = self._rec.create_stream()
+        hw = self._hotwords
+        if hw:
+            # M14: 唯一正路是 stream.set_option(qwen3 在 decode 时读它)。禁用 create_stream(hotwords=)：
+            # 那是 transducer 专用, qwen3 未 override, 基类默认实现 exit(-1) 直接杀进程。
+            stream.set_option("hotwords", hw)
         stream.accept_waveform(SR, samples)
         t0 = time.monotonic()
         self._rec.decode_stream(stream)
@@ -116,8 +150,20 @@ class AsrWorker:
             self.empty_count += 1
             return
         self.text_count += 1
+        if hw and self._pure_hotword_echo(text, hw):
+            self.pseudo_count += 1    # 只记数, 照常上抛——0927 18:18:44 幻觉回潮的哨兵(§6, 不设防护)
+            print(f'[asr] sentinel: 纯热词句 "{text[:24]}" (#{self.pseudo_count})', flush=True)
         self._on_text(AsrText(text=text, ts=time.time(), dur_s=round(dur, 2),
                               end_ts=seg_end - self._sil))
+
+    @staticmethod
+    def _pure_hotword_echo(text: str, hw: str) -> bool:
+        bare = re.sub(r"[\W_]+", "", text)
+        if not bare:
+            return False
+        for w in hw.split(","):
+            bare = bare.replace(w, "")
+        return bare == ""
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -151,10 +197,19 @@ class AsrPipeline:
     def set_active(self, on: bool) -> None:
         self._vad.set_active(on)
 
+    def set_hotwords(self, words) -> Optional[str]:
+        """M14 唯一写入口（orchestrator 线程调用）：校验→替换快照；None=拒绝保旧，""=清空。"""
+        csv = normalize_hotwords(words)
+        if csv is not None:
+            self._worker._hotwords = csv
+        return csv
+
     def stats(self) -> dict:
         return {"segments": self._vad.segment_count,
                 "texts": self._worker.text_count,
                 "empty": self._worker.empty_count,
+                "hotwords": self._worker._hotwords,
+                "hw_echo": self._worker.pseudo_count,
                 "vad_err": self._vad.err_count, "asr_err": self._worker.err_count,
                 "rtf_last": round(self._worker.rtf_last, 3),
                 "seg_q": self._vad._sink.qsize() if hasattr(self._vad, "_sink") else -1}

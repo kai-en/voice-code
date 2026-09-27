@@ -1,3 +1,3 @@
-from .core import IDLE, RUNNING, PERM, COLLECT, OrchConfig, Orchestrator, TextIn
+from .core import IDLE, RUNNING, PERM, COLLECT, HotwordsSet, OrchConfig, Orchestrator, TextIn
 
-__all__ = ["Orchestrator", "OrchConfig", "IDLE", "COLLECT", "RUNNING", "PERM", "TextIn"]
+__all__ = ["Orchestrator", "OrchConfig", "IDLE", "COLLECT", "RUNNING", "PERM", "TextIn", "HotwordsSet"]
