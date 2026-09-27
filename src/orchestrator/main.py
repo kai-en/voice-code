@@ -36,7 +36,8 @@ async def amain() -> int:
     mic.start()
     print(f"[m1] {device_line(mic)}", flush=True)
     tts = start_tts(TtsConfig(
-        backend=os.environ.get("VOICECODE_TTS_BACKEND", "wintts")), orch.post)   # 无参默认 winTTS（秒级合成）；voxcpm 需显式设环境变量
+        backend=os.environ.get("VOICECODE_TTS_BACKEND", "wintts"),
+        vox_gain=float(os.environ.get("VOICECODE_VOX_GAIN", "0.5"))), orch.post)   # 无参默认 winTTS（秒级合成）；voxcpm 需显式设环境变量
     asr = start_asr(AsrConfig(), mic, orch.post)
     asr.start()
     kws = start_kws(KwsConfig(), mic, orch.post)

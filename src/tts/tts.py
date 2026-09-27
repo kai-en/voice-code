@@ -45,6 +45,7 @@ class TtsConfig:
     prompt_text: str = ""       # 空 = 读同名 .json 的 asr_text（音色+文本随素材走）
     wintts_rate: int = 0                # System.Speech 语速 -10..10
     wintts_volume: int = 100            # 0..100
+    vox_gain: float = 0.5               # voxcpm 峰值归一后再乘的线性播放增益; 0.5=半音量, 对齐 winTTS 听感
 
 
 @dataclass(frozen=True)
@@ -176,7 +177,7 @@ class TtsEngine:
         else:
             w = np.asarray(self.model.generate(text, inference_timesteps=self.cfg.timesteps),
                            dtype=np.float32)
-        return normalize_peak(w)
+        return normalize_peak(w) * self.cfg.vox_gain
 
     def _emit(self, ev) -> None:
         try:
