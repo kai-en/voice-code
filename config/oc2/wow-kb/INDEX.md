@@ -52,6 +52,24 @@
 | qa.retail-raidframe-click-rebind | qa/retail-raidframe-click-rebind.md | verified | - |
 | retail.quests.midnight-prey-hunt-nightmare | retail/quests/midnight-prey-hunt-nightmare.md | unverified(多源交叉) | - |
 | qa.retail-nightmare-hunt-howto | qa/retail-nightmare-hunt-howto.md | unverified | - |
+| retail.raids.dv121-s2-list | retail/raids/dv121-delve-s2-list.md | unverified(多源交叉) | - |
+| retail.raids.dv121-poisonfall | retail/raids/dv121-poisonfall-abyss.md | unverified(多源交叉) | - |
+| retail.raids.dv121-ring-glory | retail/raids/dv121-ring-of-glory.md | unverified(多源交叉) | - |
+| retail.raids.dv121-nalador | retail/raids/dv121-nalador-isle.md | unverified(多源交叉) | - |
+| retail.raids.dv121-academy | retail/raids/dv121-academy-unrest.md | unverified(多源交叉) | - |
+| retail.raids.dv121-dark-corridor | retail/raids/dv121-dark-corridor.md | unverified(多源交叉) | - |
+| retail.raids.dv121-shade-hollow | retail/raids/dv121-shade-hollow.md | unverified(多源交叉) | - |
+| retail.raids.dv121-spite-arena | retail/raids/dv121-spite-arena.md | unverified(多源交叉) | - |
+| retail.raids.dv121-mem-trench | retail/raids/dv121-memory-trench.md | unverified(多源交叉) | - |
+| retail.raids.dv121-phantom-sun | retail/raids/dv121-phantom-sun-plaza.md | unverified(多源交叉) | - |
+| retail.raids.dv121-twilight-crypt | retail/raids/dv121-twilight-crypt.md | unverified(多源交叉) | - |
+| retail.raids.dv121-atamun | retail/raids/dv121-atamun.md | unverified(多源交叉) | - |
+| retail.raids.dv121-shadow-camp | retail/raids/dv121-shadowguard-camp.md | unverified(多源交叉) | - |
+| retail.raids.dv121-sunslain | retail/raids/dv121-sunslain-temple.md | unverified(多源交叉) | - |
+| retail.raids.dv121-trial-high | retail/raids/dv121-trial-highlands.md | unverified(多源交叉) | - |
+| qa.retail-delve-s2-roster | qa/retail-delve-s2-roster.md | unverified | - |
+| qa.retail-delve-nemesis | qa/retail-delve-nemesis-duwenhao.md | unverified | - |
+| qa.retail-delve-farm-mount | qa/retail-delve-farm-mount-lore.md | unverified | - |
 
 ## 空目录占位（勿删，结构即承诺）
 retail/commands、classic/*、forever、universal —— 首批未覆盖；新增条目须走 `_meta/verification.md` 核验流程后置状态。副本/任务进入流程类放 `retail/raids/`（首例已建）。任务 BUG/流程类放 `retail/quests/`（liadrin-well-phasing-bug、midnight-prey-hunt-nightmare）。ui-settings 首例已建（raidframe-buff-missing）。
