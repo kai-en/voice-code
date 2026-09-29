@@ -1,10 +1,16 @@
 # M13 对话流水视图：连 M11 控制台 WS，只打「你 / 助手」两方流水（直播时听不清就看这个）。
 # 设计 docs/0926工作/m13-dialog-view-design.md。跑法：dialog.bat（或 python -X utf8 src\console\dialog.py）。
+# RUNNING 期间占位行「思考中...(x秒)」原地刷新(\r)，每 TICK_S 一次；出现真实对话行或离开 RUNNING 时收行。
 import asyncio
 import json
 import os
+import sys
+import time
 
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
+
+TICK_S = 30.0
 
 
 def render(f):
@@ -17,13 +23,44 @@ def render(f):
     return None
 
 
+def think_line(elapsed_s):
+    return f"助手：思考中...({int(elapsed_s)}秒)"
+
+
+def _is_running(f):
+    return f.get("t") in ("state", "hello") and f.get("state") == "RUNNING"
+
+
 async def _run():
     port = os.environ.get("VOICECODE_CONSOLE_PORT", "8765")
+    t0 = None                                          # RUNNING 起点(monotonic)；非 None = 占位行驻留行尾
     async with connect(f"ws://127.0.0.1:{port}/") as ws:
-        async for raw in ws:
-            line = render(json.loads(raw))
+        recv = asyncio.ensure_future(ws.recv())
+        while True:
+            done, _ = await asyncio.wait({recv}, timeout=(TICK_S if t0 is not None else None))
+            if not done:
+                sys.stdout.write("\r" + think_line(time.monotonic() - t0))
+                sys.stdout.flush()
+                continue
+            try:
+                raw = recv.result()
+            except ConnectionClosed:
+                break
+            recv = asyncio.ensure_future(ws.recv())
+            f = json.loads(raw)
+            if _is_running(f):
+                t0 = time.monotonic()
+                sys.stdout.write("\r" + think_line(0.0))
+                sys.stdout.flush()
+                continue
+            if t0 is not None and (render(f) or f.get("t") == "state"):
+                sys.stdout.write("\n")                 # 收掉占位行，后续行正常入历史
+                sys.stdout.flush()
+                t0 = None
+            line = render(f)
             if line:
                 print(line, flush=True)
+        recv.cancel()
 
 
 if __name__ == "__main__":

@@ -195,5 +195,13 @@ def test_dialog_render_only_two_party_lines():
     assert render({"t": "ev", "kind": "TextIn", "d": {"text": "打字问"}}) == "你：打字问"
     assert render({"t": "ev", "kind": "AsrText", "d": {"text": ""}}) is None      # 空文本(如 stop 帧)不入流水
     assert render({"t": "ev", "kind": "OcTool", "d": {"name": "grep"}}) is None
-    assert render({"t": "state", "state": "RUNNING"}) is None
+    assert render({"t": "state", "state": "RUNNING"}) is None      # RUNNING 占位行由 _run 的 30s ticker 画
     assert render({"t": "hello", "v": 1, "port": 8765}) is None
+    from console.dialog import think_line
+    assert think_line(0.0) == "助手：思考中...(0秒)"
+    assert think_line(30.4) == "助手：思考中...(30秒)"
+    assert think_line(61.9) == "助手：思考中...(61秒)"
+    from console.dialog import _is_running
+    assert _is_running({"t": "state", "state": "RUNNING"})
+    assert _is_running({"t": "hello", "v": 1, "state": "RUNNING"})
+    assert not _is_running({"t": "state", "state": "COLLECT"})
