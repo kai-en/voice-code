@@ -21,6 +21,7 @@
 | retail.raids.lfr-sporefall-rotmire | retail/raids/lfr-sporefall-rotmire.md | unverified(多源交叉) | - |
 | retail.raids.spire-final-cosmic-crown | retail/raids/spire-final-cosmic-crown.md | unverified(多源交叉) | - |
 | retail.raids.lfr-s2-venomous-rewards | retail/raids/lfr-s2-venomous-rewards.md | unverified(多源交叉,含分歧值) | - |
+| retail.gamerules.lfr-lock-weekly | retail/gamerules/lfr-lock-weekly.md | unverified(多源交叉) | - |
 | retail.raids.lfd-heroic-121-list | retail/raids/lfd-heroic-121-list.md | unverified(多源交叉) | - |
 | retail.raids.dg121-altar-fangs | retail/raids/dg121-altar-fangs.md | unverified(多源交叉) | - |
 | retail.raids.dg121-conspiracy-path | retail/raids/dg121-conspiracy-path.md | unverified(多源交叉) | - |
@@ -34,6 +35,7 @@
 | qa.retail-lfr-cosmic-crown | qa/retail-lfr-cosmic-crown.md | unverified | - |
 | qa.retail-lfr-sporefall-healer | qa/retail-lfr-sporefall-healer.md | unverified | - |
 | qa.retail-lfr-void-arsenal-healer | qa/retail-lfr-void-arsenal-healer.md | unverified | - |
+| qa.retail-lfr-repeat-weekly | qa/retail-lfr-repeat-weekly.md | unverified | - |
 | retail.gamerules.disable-quick-join | retail/gamerules/disable-quick-join.md | unverified | 12.1.0.69283 |
 | addons.catalog | addons/_catalog.md | unverified | - |
 | addons.details-dual-windows | addons/details-dual-windows.md | verified | - |
@@ -70,6 +72,14 @@
 | qa.retail-delve-s2-roster | qa/retail-delve-s2-roster.md | unverified | - |
 | qa.retail-delve-nemesis | qa/retail-delve-nemesis-duwenhao.md | unverified | - |
 | qa.retail-delve-farm-mount | qa/retail-delve-farm-mount-lore.md | unverified | - |
+| addons.boss-mod-voice-packs | addons/boss-mod-voice-packs.md | verified | DBM12.1.11/BW2026-09 |
+| qa.retail-voice-addon-pick | qa/retail-voice-addon-pick.md | verified | - |
+| retail.commands.gamepad-cvars | retail/commands/gamepad-cvars.md | verified | 12.1.5.69594(PTR dump) |
+| qa.retail-gamepad-enable | qa/retail-gamepad-enable.md | verified | - |
+| retail.commands.camera-zoom-cvars | retail/commands/camera-zoom-cvars.md | verified | 12.1.5.69594(PTR dump) |
+| qa.retail-mousewheel-zoom-speed | qa/retail-mousewheel-zoom-speed.md | verified | - |
+| retail.gear.preservation-path | retail/gear/preservation-evoker-gear-path.md | unverified(表体单源B+中文名S) | - |
+| qa.retail-gear-next-step | qa/retail-gear-next-step.md | verified | - |
 
 ## 空目录占位（勿删，结构即承诺）
-retail/commands、classic/*、forever、universal —— 首批未覆盖；新增条目须走 `_meta/verification.md` 核验流程后置状态。副本/任务进入流程类放 `retail/raids/`（首例已建）。任务 BUG/流程类放 `retail/quests/`（liadrin-well-phasing-bug、midnight-prey-hunt-nightmare）。ui-settings 首例已建（raidframe-buff-missing）。
+classic/*、forever、universal —— 首批未覆盖；retail/commands 首例已建（gamepad-cvars）。新增条目须走 `_meta/verification.md` 核验流程后置状态。副本/任务进入流程类放 `retail/raids/`（首例已建）。任务 BUG/流程类放 `retail/quests/`（liadrin-well-phasing-bug、midnight-prey-hunt-nightmare）。ui-settings 首例已建（raidframe-buff-missing）。装备配装/提升建议类放 `retail/gear/`（首例已建：preservation-evoker-gear-path，首批仅恩护，余专精现查后滚动补录）。

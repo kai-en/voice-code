@@ -30,6 +30,7 @@ class KwsConfig:
 class KwsHit:
     keyword: str
     ts: float
+    repeat: bool = False     # cooldown 内的二喊：只用于编排器刷新回音锚，不动状态
 
 
 def build_spotter(cfg: KwsConfig, model_dir: Path | None = None):
@@ -142,8 +143,12 @@ class KwsWorker:
 
     def _handle(self, keyword: str) -> None:
         now = self._clock()
-        if self._muted or now - self._last_hit < self._cfg.cooldown_s:
+        if self._muted:
             self.dropped_count += 1
+            return
+        if now - self._last_hit < self._cfg.cooldown_s:
+            self.dropped_count += 1          # _last_hit 不更新：cooldown 自最近一次真命中起算
+            self._on_hit(KwsHit(keyword=keyword, ts=time.time(), repeat=True))
             return
         self._last_hit = now
         self.hit_count += 1

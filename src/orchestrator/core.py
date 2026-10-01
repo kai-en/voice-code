@@ -10,13 +10,21 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Optional
+
+from kws.kws_wake import KwsConfig                            # 只借激活词文件路径（分派仍按类名字符串）
 
 from . import textproc
 
 IDLE, COLLECT, RUNNING, PERM = "IDLE", "COLLECT", "RUNNING", "PERM"
 STOP = object()
 _SENDING = object()           # 占位护栏：send 的 REST 在飞、Future 还没到手
+# M13 回音过滤窗: Δ=AsrText.end_ts−wake_mono 落窗=唤醒词同段回音(转写成同音也杀, 与文本无关), 整段丢。
+# 锚是 dispatch 时刻, 落后词声学终点 L=唤醒全链延迟(kws-design §: 160ms批+320ms chunk-16+trailing
+# blanks+dispatch ≈0.5~0.9s, 重载再漂)→纯回音 Δ≈−L 恒为负; back=1.2 覆盖 L 上界(0928 评审 F1, 原 0.6 会漏杀)。
+# fwd 只 0.10: 独立指令段必有 ≥0.6s 静默间隔, Δ≥+0.65 出窗; 连读短令落窗属"宁漏勿杀"已拍板的牺牲。
+ECHO_BACK_S, ECHO_FWD_S = 1.20, 0.10
 
 
 @dataclass(frozen=True)
@@ -37,6 +45,8 @@ class HotwordsSet:
 @dataclass
 class OrchConfig:
     collect_silence_s: float = 3.0      # 断句后静默 3s 成轮（不论长度）
+    collect_confirm_s: float = 0.5      # 成轮窗额外余量：给 VAD 起头 min_speech(0.25s) 时间成熟，收窄"第二句刚开口"盲区(0930)
+    collect_defer_cap_s: float = 10.0   # audio_pending 推迟提交的上限(防卡死保险:回声漏 AEC 持续触发 VAD 时强提交)
     perm_timeout_s: float = 15.0        # 权限问句无应答→reject
     ack_text: str = "在呢。"
     bye_text: str = "好，先退下了。"
@@ -59,7 +69,9 @@ def _brief(ev) -> str:
     if cls == "OcPermission":
         return f"{ev.action}"
     if cls == "KwsHit":
-        return ev.keyword
+        return ev.keyword + ("/repeat" if ev.repeat else "")
+    if cls == "OcLink":
+        return f"{ev.state} {ev.detail}".strip()[:60]
     if cls == "HotwordsSet":
         return ",".join(ev.words)[:24]
     return ""
@@ -67,11 +79,37 @@ def _brief(ev) -> str:
 
 _DENY = ("拒绝", "不行", "不要", "不准", "不可以", "取消", "驳回", "别")
 _ALLOW = ("允许", "同意", "可以", "好的", "行吧", "放行", "没问题", "ok", "OK")
-_WAKE_RE = re.compile(r"^(?:小码[，,、\s]*){1,2}")
+# 剥唤醒前缀用 keywords.txt 的**实际**激活词（自定义"小爱"后不再只认死"小码"）；
+# 仍只认正字——同音转写剥不动（R2 已知项：KWS 音素级听得见，文本级不猜同音，误剥更伤）。
+_WAKE_RE_CACHE = {}
+
+
+def _wake_res():
+    key = str(KwsConfig().keywords_file)
+    if key not in _WAKE_RE_CACHE:
+        words = []
+        try:
+            for line in Path(key).read_text(encoding="utf-8").splitlines():
+                w = line.rsplit("@", 1)[1].strip() if "@" in line else ""   # 格式: tokens :分 @显示名
+                if len(w) >= 2:
+                    words.append(w)
+                    h = len(w) // 2
+                    if len(w) % 2 == 0 and w[:h] == w[h:]:
+                        words.append(w[:h])                   # "小码小码"→半词"小码"也剥
+        except OSError:
+            pass
+        words = list(dict.fromkeys(words))
+        if not words:
+            _WAKE_RE_CACHE[key] = None                        # 文件缺席/无 @显示名 → 不剥(不再有死词兜底)
+        else:
+            alt = "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))
+            _WAKE_RE_CACHE[key] = re.compile(rf"^(?:(?:{alt})[，,、\s]*){{1,2}}")
+    return _WAKE_RE_CACHE[key]
 
 
 def strip_wake(text):
-    return _WAKE_RE.sub("", text.strip(), count=1).strip()
+    pat = _wake_res()
+    return pat.sub("", text.strip(), count=1).strip() if pat else text.strip()
 
 
 def match_permission(text):
@@ -97,6 +135,10 @@ class Orchestrator:
         self._spoke_this_turn = False   # 本回合是否已出声：False=思考期(ASR 打断需 KWS)，True=回答期(任意 ASR 可打断)
         self._rest = ""                 # 本回合模型话里还没成句的尾巴（与 self.buf 对称）
         self._sent = ""                 # 已发出但那轮被打断没答完的提问；下次前置 → 打断=追加重问
+        self._wake_mono = None          # M13: 最近一次 KwsHit 到达时刻(monotonic, 与 end_ts 同基准)
+        self.echo_drops = 0             # M13: 被判为激活词回音而丢弃的句数(观测)
+        self._defer_logged = False      # M5 0930: 本提交窗口是否已因 audio_pending 推迟过(日志去重+计 cap)
+        self._defer_start = 0.0         # 首次推迟时刻；_defer_logged 为真时有效
         self._q: asyncio.Queue = asyncio.Queue()
         self._loop, self._pre = None, []
         self.kws = self.asr = self.tts = self.oc = None
@@ -181,17 +223,27 @@ class Orchestrator:
                 await self._collect_fire()
             return
         if cls == "KwsHit":
+            self._wake_mono = self.clock()         # 一切状态都刷锚(COLLECT/PERM 的 no-op 命中同样要杀回音句)
+            if ev.repeat:
+                return                             # cooldown 二喊: 只刷锚, 不动状态
             if self.state == IDLE:                   # 会话中(COLLECT/PERM) KWS 再响=无效(用户已在线)
                 self._speak(self.cfg.ack_text)
                 self._go(COLLECT)
             elif self.state == RUNNING:              # 思考期打断 LLM 的唯一通道(不念 ack, Q1)
                 self._barge_in("")
         elif cls == "AsrText":
+            if self._is_wake_echo(ev):               # 先于 strip_wake: 杀同音回音与文本无关(log 见原文)
+                self.echo_drops += 1
+                self._log(f'echo-drop "{ev.text[:16]}" Δ={ev.end_ts - self._wake_mono:+.2f}s')
+                return
+            if self._wake_mono is not None and ev.end_ts > 0 and -3.0 <= (d := ev.end_ts - self._wake_mono) <= 0.5:
+                self._log(f'echo-near "{ev.text[:16]}" Δ={d:+.2f}s')   # F2: 近锚未杀样本留痕, 真机校准窗口靠它
             text = strip_wake(ev.text)
             if self.state == COLLECT and text:
                 self.buf += text
                 base = ev.end_ts if ev.end_ts > 0 else self.clock()   # 锚在"说完"，不是"解码完"
-                self.collect_deadline = base + self.cfg.collect_silence_s
+                self.collect_deadline = base + self.cfg.collect_silence_s + self.cfg.collect_confirm_s
+                self._defer_logged, self._defer_start = False, 0.0    # 新一句 → 推迟 episode 重新计
             elif self.state == RUNNING:
                 if self._spoke_this_turn:            # 回答期(R4)：主播抢话=不满意, 断
                     self._barge_in(text)
@@ -297,7 +349,12 @@ class Orchestrator:
         self._go(COLLECT)
         if text:
             self.buf = (self.buf + "\n" + text) if self.buf else text   # 覆盖会吞掉竞态窗口里攒下的半句
-            self.collect_deadline = self.clock() + self.cfg.collect_silence_s
+            self.collect_deadline = self.clock() + self.cfg.collect_silence_s + self.cfg.collect_confirm_s + self.cfg.collect_confirm_s
+
+    def _is_wake_echo(self, ev) -> bool:
+        if self._wake_mono is None or ev.end_ts <= 0:
+            return False                             # 无锚/无端点时刻 → fail-open(守 end_ts=0 构造的既有用例)
+        return -ECHO_BACK_S <= ev.end_ts - self._wake_mono <= ECHO_FWD_S
 
     async def _answer_perm(self, text):
         rid, self._rid = self._rid, None
@@ -311,6 +368,17 @@ class Orchestrator:
     async def tick(self):                            # main._ticker 以 2Hz 驱动
         now = self.clock()
         if self.state == COLLECT and self.buf and now >= self.collect_deadline:
+            pending = self.asr is not None and self.asr.audio_pending()
+            overdue = self._defer_logged and now - self._defer_start >= self.cfg.collect_defer_cap_s
+            if pending and not overdue:              # 话还在路上(在说/在队/在解码): 别把第二句丢进 R3 吞了
+                if not self._defer_logged:
+                    self._defer_logged, self._defer_start = True, now
+                    self._log("collect defer: audio_pending")
+                self.collect_deadline = now + 0.5
+                return
+            if overdue:                              # 保险: audio_pending 长期为真(回声/常开麦) → 到上限仍强提交
+                self._log(f"collect defer cap {self.cfg.collect_defer_cap_s:.0f}s -> force fire")
+            self._defer_logged, self._defer_start = False, 0.0
             await self._collect_fire()
         elif self.state == PERM and now >= self.perm_deadline:
             self._log("perm timeout -> reject")

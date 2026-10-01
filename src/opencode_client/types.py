@@ -56,5 +56,5 @@ class OcTurnDone:
 
 @dataclass(frozen=True)
 class OcLink:
-    state: str         # connected | reconnecting | disconnected | version_warn
+    state: str         # connected | reconnecting | disconnected | version_warn | mcp.status.changed | mcp.resources.changed | instructions.updated（纯观测，不参与状态机）
     detail: str = ""

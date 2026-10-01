@@ -12,15 +12,17 @@
     { "action": "skill", "resource": "*", "effect": "allow" },
     { "action": "webfetch", "resource": "*", "effect": "allow" },
     { "action": "websearch", "resource": "*", "effect": "allow" },
-    { "action": "edit", "resource": "*", "effect": "deny" }
+    { "action": "edit", "resource": "*", "effect": "deny" },
+    { "action": "shell", "resource": "*Get-Clipboard*", "effect": "ask" },
+    { "action": "question", "resource": "*", "effect": "deny" }
   ],
   "mcp": {
     "servers": {
       "playwright": {
         "type": "local",
-        "command": ["npx", "-y", "@playwright/mcp@latest", "--browser", "chrome", "--executable-path", "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "--user-data-dir", "D:\\work\\voice-code\\tools\\oc2-home\\playwright-profile"],
+        "command": ["G:\\nodejs\\node.exe", "D:\\work\\voice-code\\tools\\oc2\\node_modules\\@playwright\\mcp\\cli.js", "--browser", "chrome", "--executable-path", "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "--user-data-dir", "D:\\work\\voice-code\\tools\\oc2-home\\playwright-profile"],
         "codemode": false,
-        "timeout": { "startup": 90000, "catalog": 30000 }
+        "timeout": { "startup": 15000, "catalog": 30000 }
       }
     }
   }

@@ -49,7 +49,22 @@ def test_permission_words():
 
 
 def test_strip_wake():
-    assert strip_wake("小码小码，帮我开单") == "帮我开单"
+    assert strip_wake("小码小码，帮我开单") == "帮我开单"        # 全词+逗号一起剥(0928 正则优先级回归)
+    assert strip_wake("小码，停") == "停"                        # 半词也剥(keywords.txt "小码小码"→自动派生)
+    assert strip_wake("小码小码小码小码 停一下") == "停一下"      # 连喊两遍只剥 ≤2 次
+    assert strip_wake("帮我看看小码小码") == "帮我看看小码小码"   # 句中不剥, 只管前缀
+    assert strip_wake("小马小马，帮我开单") == "小马小马，帮我开单"  # 同音剥不动(R2 已知: 交给 M13 回音门/LLM 错字规则)
+
+
+def test_strip_wake_custom_keyword(tmp_path, monkeypatch):
+    import orchestrator.core as core
+    f = tmp_path / "keywords.txt"
+    f.write_text("d x iǎo à i :1.5 @小爱小爱\n", encoding="utf-8")
+    monkeypatch.setattr(core, "KwsConfig", lambda: type("C", (), {"keywords_file": f})())
+    monkeypatch.setattr(core, "_WAKE_RE_CACHE", {})
+    assert core.strip_wake("小爱小爱，帮我开灯") == "帮我开灯"
+    assert core.strip_wake("小爱，开灯") == "开灯"                    # 半词派生
+    assert core.strip_wake("小码小码，开灯") == "小码小码，开灯"       # 自定义后不再认"小码"
 
 
 def test_normalize_peak():
@@ -68,8 +83,11 @@ class FakeAsr:
     def __init__(self):
         self.active = None
         self.hotwords = []
+        self.pending = False              # audio_pending 可控开关(提交闸用例)
     def set_active(self, on):
         self.active = on
+    def audio_pending(self):
+        return self.pending
     def set_hotwords(self, words):
         from asr.pipeline import normalize_hotwords
         csv = normalize_hotwords(list(words) if isinstance(words, (list, tuple)) else words)
@@ -162,6 +180,58 @@ def test_silence_then_send_full_buffer():
             await finish(task, orch)
     asyncio.run(_run())
 
+
+def test_collect_commit_deferred_while_audio_pending():
+    """3s 到期但 audio_pending(在说/在解码)→推迟提交；两句合并一次发(防第二句落进 R3 被吞)。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("小码", 0), AsrText("第一句", 0, 0.5)])
+        try:
+            asr.pending = True                       # 第二句还在说: VAD/解码器持有在飞样本
+            orch.collect_deadline = now[0]           # 模拟第一句的 3s 静默到期
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert orch.state == COLLECT and oc.sent == []
+            assert orch.collect_deadline == now[0] + 0.5     # 0.5s 后重试
+            orch.post(AsrText("第二句", 0, 0.5)); await asyncio.sleep(0.02)   # 迟到句入 buf 重锚
+            assert orch.collect_deadline == now[0] + 3.5     # 静默窗含 0.5s 起头确认余量
+            assert orch._defer_logged is False             # 重锚 → 推迟 episode 重新计
+            asr.pending = False
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert oc.sent == [("ses_1", "第一句第二句")]
+            assert orch.state == RUNNING
+        finally:
+            fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
+
+def test_collect_defer_cap_force_fire():
+    """audio_pending 长期为真(如回声漏 AEC) → 推迟满 cap 强提交, COLLECT 不卡死。"""
+    async def _run():
+        orch, asr, tts, oc, now = build()
+        fut = asyncio.get_running_loop().create_future()
+        oc.send_fut = fut
+        task = await drive(orch, [KwsHit("小码", 0), AsrText("卡住的半句", 0, 0.5)])
+        try:
+            asr.pending = True
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)     # 首次推迟, _defer_start=now
+            now[0] += 9.0
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)     # 未到 cap, 继续推迟
+            assert oc.sent == []
+            now[0] += 1.0                                    # 距首推 10s = cap
+            orch.collect_deadline = now[0]
+            await orch.tick(); await asyncio.sleep(0.02)
+            assert oc.sent == [("ses_1", "卡住的半句")] and orch.state == RUNNING
+        finally:
+            fut.cancel()
+            await finish(task, orch)
+    asyncio.run(_run())
+
 def test_stream_flushes_tail_at_turn_end():
     S1 = "尽管来，我这脑子专治各种刁钻问题。"
     S2 = "查得到我就给你带版本的说法，查不到我也直说不瞎编"      # 尾巴没标点，flush 不补
@@ -194,14 +264,14 @@ def test_stream_flushes_tail_at_turn_end():
 
 # ---------- 3s 锚点 / barge-in 追加 / 先转态再发（2026-09-26 真机丢话复盘） ----------
 def test_collect_deadline_anchors_on_speech_end():
-    """解码迟到 5s：deadline 锚在"说完+3s"，已过期就立刻成轮，不再白等 3s。"""
+    """解码迟到 5s：deadline 锚在"说完+3s+确认余量"，已过期就立刻成轮，不再白等 3s。"""
     async def _run():
         orch, asr, tts, oc, now = build()
         task = await drive(orch, [KwsHit("x", 0)])
         try:
             orch.post(AsrText("早说完的话", 0, 0.5, end_ts=now[0] - 5.0))
             await asyncio.sleep(0.02)
-            assert orch.collect_deadline == now[0] - 2.0
+            assert orch.collect_deadline == now[0] - 1.5
             await orch.tick(); await asyncio.sleep(0.02)
             assert orch.state == RUNNING and oc.sent[-1][1] == "早说完的话"
         finally:
@@ -214,9 +284,9 @@ def test_collect_deadline_still_waits_when_fresh():
         orch, asr, tts, oc, now = build()
         task = await drive(orch, [KwsHit("x", 0)])
         try:
-            orch.post(AsrText("刚说完", 0, 0.5, end_ts=now[0]))
+            orch.post(AsrText("刚说完", 0, 0.5, end_ts=now[0] + 0.5))   # 句尾离唤醒锚 ≥0.5s, 不落 M13 回音窗
             await asyncio.sleep(0.02)
-            assert orch.collect_deadline == now[0] + 3.0
+            assert orch.collect_deadline == now[0] + 4.0     # base(+0.5) + silence(3) + confirm(0.5)
             await orch.tick(); await asyncio.sleep(0.02)
             assert orch.state == COLLECT and not oc.sent
         finally:
@@ -414,7 +484,7 @@ def test_kws_interrupts_thinking_phase_and_collects_next():
             orch.post(AsrText("小码小码", 0, 0.5)); await asyncio.sleep(0.02)
             assert orch.buf == ""                                         # strip_wake 后为空 → 不入 buf
             orch.post(AsrText("停，换个事", 0, 0.5)); await asyncio.sleep(0.02)
-            assert orch.buf == "停，换个事" and orch.collect_deadline == now[0] + 3.0
+            assert orch.buf == "停，换个事" and orch.collect_deadline == now[0] + 3.5
         finally:
             fut.cancel()
             await finish(task, orch)

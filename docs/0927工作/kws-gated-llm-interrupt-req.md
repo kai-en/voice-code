@@ -95,3 +95,49 @@ RUNNING 期任何 `AsrText` → `_barge_in()`（core.py:171-172, 257-267）= `tt
 | `src/orchestrator/core.py` | +30 以内 | **+12/−3（净+9）**，284→293 行 | 与 §3 方案一致：`_spoke_this_turn` 标志（`_collect_fire` 复位、OcText 首播置位）+ RUNNING 的 AsrText 分支门控 + KwsHit 增 RUNNING 分支 |
 | `tests/test_m5_orch.py` | +60 | **+66** | 新增 3 个门控 UT；6 个既有 barge-in UT 各加一行"先出声进回答期"前置（真机丢话复盘的护栏语义不动） |
 | 其他 | 0 | 0 | asr/kws/tts/oc/main 未动 |
+
+## 10. 二轮补丁：KWS 时间戳回音门（2026-09-28 凌晨，deepthink 设计+实现）
+
+问题：KWS 打断/唤醒后，ASR 也会把"小码小码"转写出来（常成同音"小马小马"），文本剥离（strip_wake）
+只认正字，防不住同音垃圾进 buf。方案改为**与转写文本无关的时间戳过滤**（用户拍板方向）：
+
+- 机制：任何 `KwsHit` 到达即记 `_wake_mono=clock()`（monotonic，与 `AsrText.end_ts` 同基准——
+  end_ts=VAD 段语音真终点+量化误差，与解码延迟解耦）；随后 AsrText 若
+  `Δ=end_ts−wake_mono ∈ [−0.60,+0.10]` 判为唤醒词同段回音，**整段丢弃**
+  （log `echo-drop "…" Δ=…` + `echo_drops` 计数，观测不拦截其它路径）。
+- 关键性质：`end_ts=0`/无锚 → fail-open（既有 20+ UT 零改动兼容）；连读段"小码小码帮我开单"
+  （Δ≈+0.5~1.5）出窗保留，正字前缀仍由 strip_wake 剥（strip_wake 本轮同步升级为
+  keywords.txt 动态正则+半词派生，正字/自定义词场景）；COLLECT/PERM 的 no-op 命中同样刷锚
+  （顺带堵掉"回音句在 PERM 被 match_permission 判 reject"的暗坑）；fwd 窗只取 0.10s——
+  宁漏勿杀（漏=同音垃圾一行进 LLM 错字规则≈现状，杀=丢指令需重说）。
+- KWS 侧（P1）：cooldown 内二喊不再静默吞，改 emit `KwsHit(repeat=True)`——编排器只刷锚不动
+  状态，覆盖 2s 内连喊的第二回音；`_last_hit` 语义不变（自最近真命中起算）。
+- 行数核账：core.py +17（估 14±3 ✓，359 行）；kws_wake.py +5（估 4 ✓）；新增
+  `tests/test_m13_echo_gate.py` 8 例 + m2 repeat 契约 1 例 + strip_wake 扩测（tmp 文件
+  monkeypatch 隔离真实 keywords.txt）；133 UT 全绿。
+- 真机待办：观察 `echo-drop` 行的 Δ 分布校准 ECHO_BACK_S/ECHO_FWD_S 两常量
+  （风险评审：误杀最坏=丢一句、免唤醒重说即自愈，无卡死路径）。
+
+### 10.1 三轮 review（deepthink，重点=是否用硬编码文本）后修订 F1-F5
+
+review 判定门控路径 **100% 纯时间戳**（`_is_wake_echo` 只读 `_wake_mono`+`end_ts`，无长度/字符/
+"是否含唤醒字样"任何文本条件；`keyword` 除 log/前端镜像外零决策参与），残留死词仅 1 处（兜底）。逐条修：
+
+- **F1（数值修正）** `ECHO_BACK_S` 0.60→**1.20**：原值只算了 160ms 批延迟，漏算 chunk-16 的 320ms
+  算法延迟 + trailing blanks + dispatch → 纯回音 Δ≈−L 实际落在 −0.35~−0.9，0.60 会大概率**漏杀**
+  （正是思考期 CPU 最忙、最需要这道门时）。`ECHO_FWD_S` 保持 0.10。代价：COLLECT 中真句尾紧邻一个
+  假 KWS 触发（<1 次/小时）会误杀一句，重说即自愈。
+- **F2（观测补齐）** 未命中侧加 `echo-near` 近窗日志（Δ∈[−3,+0.5]）——原设计"观察 Δ 分布校准常量"
+  若只打窗内样本则逃出窗的永远不可见，此条让校准有数据可依。
+- **F3（回归修复）** `human-test/m2_t5_wake-rate.py` `on_hit` 开头 `if h.repeat: return`，防本轮
+  repeat emit 污染唤醒率/误触发计数（历史 RESULTS 已现 hits=11/10 多计先例）。
+- **F4（清除死词）** `strip_wake` 去掉 `or ["小码"]` 兜底：文件缺失/无 `@显示名` → **返回原文不剥**
+  （并短路避免 `^(?:(?:)…)` 退化正则）。全仓再无任何死激活词参与文本处理。附带修 `test_m13`
+  连读用例（原兜底使该例即使真文件不可读也过，现能真正证明动态解析）。
+- **F5** `_brief`/KwsHit 分支 `getattr(ev,"repeat",False)`→直接 `ev.repeat`（dataclass 已保证字段，
+  原防御与同行裸取 `ev.keyword` 自相矛盾）；补连读短令边界 UT。
+  `echo_drops` 计数**保留**（已接 F2 逐条日志作为观测出口，非纯冗余）。
+
+净行数：core.py +~8（本轮）、kws_wake.py 未再增；新增 1 UT（merged 短令牺牲）。
+仍待真机：按 F1/F2 采 `echo-near`/`echo-drop` 的 Δ 分布回校两常量；若延迟档仍不理想，
+F6（用 KWS `timestamps()` 取声学末 token 时刻做**声学锚**替代 dispatch 锚，窗可缩回 0.2）留下一轮。

@@ -21,7 +21,7 @@ verified: { date: 2026-09-25, by: "deepthink-0925" }
 | 4b | www.sogou.com | **取官网文章全文**的绕行路：微信垂类把公众号转载**全文**直接嵌进 SERP | B(转载，内容=S) | 站点索引陈旧（blizz 站只到 2025-10）→ **只当"抓全文"，不当"查新"**；须与官网/S 级摘要逐句一致才可按 S 用 |
 | 4c | **wow.blizzard.cn/news** | 判"当前赛季是否在跑/下版本是否只是前瞻/国服上线日" | S | 一次直读胜过整轮 SERP；**列表页正文不含文章链接**，文章 URL/编号常拿不到 → 引用记"栏目+日期+标题"。**取法**：bash 直取后 `UTF8.GetString(RawContentStream)`（PS 5.1 默认解码出乱码是本地显示问题，不是页面问题；`-Method Head` 不带 `-UseBasicParsing` 在非交互模式会直接报错） |
 | 4d | **bilibili 视频标题**（经 SERP 命中，不必看视频） | **战役↔章节↔任务↔补丁号**四层归属映射（实录标题常为「12.0主线:战役名:章节名:序号-任务名」） | B(玩家一手) | 本次靠它纠正库内一条归属错误；比攻略稿硬，但**只用于"归属"，不用于数值** |
-| 5 | baidu SERP(playwright) | 国服内容/攻略检索主力 | B(原创帖摘要) | **页面顶部 AI 答案卡片标注"内容由 AI 生成"=C 级仅线索**，必须回溯到贴吧/3DM/NGA 等原创帖摘要交叉。2026-09-26：**webfetch 只 text 模式可用**，html/markdown 两次复现「百度安全验证」；SERP 日期字段仍会错标（官网 9/23 修正被标 8/22） |
+| 5 | baidu SERP(playwright) | 国服内容/攻略检索主力 | B(原创帖摘要) | **页面顶部 AI 答案卡片标注"内容由 AI 生成"=C 级仅线索**，必须回溯到贴吧/3DM/NGA 等原创帖摘要交叉。2026-09-26：**webfetch 只 text 模式可用**，html/markdown 两次复现「百度安全验证」；SERP 日期字段仍会错标（官网 9/23 修正被标 8/22；2026-10-01 再证：**旧公告转载页被标成近日期**——环球网转载 2013 年 5.3 维护变更公告被标 2026-09-09，判时代必须看正文内补丁号/事件词） |
 | 6 | NGA 正文（本机持久 profile 已登录，2026-09-25 实测） | 国服玩家一手/搬运帖全文 | **S(正文)/C(摘要)** | 见下方"NGA 登录态使用纪律" |
 
 ## S 级够不到的内容（顶棚原则）
@@ -51,8 +51,26 @@ NPC 名/坐标、任务流程、副本奖励、开放时间等**游戏数据库�
 7. **PTR→实装改名在 S2 达五件套级**（坐骑/头衔/成就/玩具/背饰全改）：**8/13 前稿件的"奖励专名"一律不入库**，只留 PTR 口径档；对齐只认 8/13 后标"正式服/来源：公众号"的稿（§5 姊妹坑扩展）。
 8. **TWW 老堡名混排警戒**：真菌之愚/闸板陋巷/幻世警钟/怨毒之池/夜幕圣所等=地心之战老堡，SERP 高频混进至暗之夜结果，剔除后再计数。
 
+## CVar/console 命令全量清单类（2026-09-30 手柄条目定型）
+1. **warcraft.wiki.gg**（fandom wowpedia 后继站，本机可达，不进禁试清单）：`Console_variables/Complete_list`=**客户端自动 dump**（标 build 号、含默认值/描述/加入版本），`Console_variables/Classic`=五客户端对照表带 apicompat 位掩码（判 retail/forever 等归属，`0x2`=仅 Forever）。机器生成非手改 → cvar **存在性/归属可按 S 用**；正确页名 Console_variables（Console_variable、Gamepad 均 404）。
+2. 文件树交叉：`Gethe/wow-ui-source@live`、`Ketho/wow-ui-source-standard-ptr@ptr2`、`Ketho/wow-ui-source-forever@forever` 走 api.github.com git/trees，按"含关键词的文件计数"证 UI 层有无（手柄条目即由此钉死 Retail 无面板、Forever 有全套）。
+3. 坑——**人工 wiki 页/`{{apinavbox}}` 侧栏含幽灵 cvar**（GamePadEmulateEsc 已从客户端移除但页面 2026-08 还在编辑）：清单以 dump 为准，人工页只当补充；两份 dump 的 Default 可互斥（对照表 Default 列五客户端共享，可能取非 Retail 值）→ 数值口播必带"游戏内 GetCVarInfo 为准"。
+4. 死路（勿再试）：stevesong.com/wow-cvars 本机超时；github 仓 kevinschaich/wow-cvars 不存在（404）。
+5. **grep.app 全仓代码索引**（2026-10-01 滚轮缩放条目定型）：核"cvar/全局函数在 UI 层有无消费点"的穷尽性快捷路——Gethe/tomrus88 双仓命中计数即可判；cvar 名 Lua 侧零命中=纯引擎侧（cameraZoomSpeed 即此判法）。第三方相机/设置类插件命中（DynamicCam/AIO/KethoDoc）=B 级语义旁证（其滑条名/范围/默认值与 dump 吻合时可强化"该 cvar 确有所指"）。
+6. 坑——老时代（2004-06）cvar 历史存在性离线不可考（wowpedia fandom 禁试、dump 只覆盖现客户端）→ 只能报"当前全客户端零命中"，不写"历史上从未存在"（CamZoomInDistance1-4 即此口径）。
+5. **手柄混输入"行为类"问题取证路**（2026-09-30 吐息条目定型）：cvar 存在性 dump 钉不了"实际行为"，主力=`us.forums.blizzard.com` Discourse JSON（`search.json?q=`+`t/<id>.json` 均可达，顶棚 B；OverlapMouseMs 受控实验 t/1538136、SetGamePadFreeLook 宏实测皆出于此）+ 在产插件一手源码（ConsolePort）佐证 + WoWUIBugs issues 证探测器污染（#506 Discord 覆盖）。死路：reddit 两形态均不通；bash SERP 路 baidu 撞安全验证、so.com 出 AI 卡污染——**此类问题中文一手源≈零，别在 NGA 上耗**，顶棚就是英文论坛+源码，终极证据靠主播实机。
+6. **全局函数面交叉**：warcraft.wiki.gg `Global_functions` 清单页走 `api.php?action=parse&prop=wikitext` 提全量（手柄全局函数 9 个即此捞出）；这批函数**无单独 API 页**（missingtitle）→ 存在性 S，语义只能靠 jsdelivr 读 ConsolePort `Controller/Mouse.lua` + 论坛实测反推，顶棚 B。
+
+## 装备建议/专精配装类渠道（2026-09-30 实测定型，恩护试点）
+1. **Maxroll**（`maxroll.gg/wow/class-guides/<专精>-…-guide`，B 级）：现役**唯一"槽位→装备→来源"结构化表**（GEAR 节=BiS+Farmable Alternatives 两列、饰品 S/A/B/C 分档、Embellishment 制造点位）；正文 Next.js 懒加载——浏览器 evaluate 切 innerText 有效，bash HEAD 200 但拿不到正文。英文站：装备中文译名须回真机核（口播不硬报）。
+2. **simc.org 官网首页**（B 级）：Raid Results 的"MID× ~NNN ilevel Patchwerk-style"标题即**各团本难度入场装等参照**（官方模拟器样号口径）。
+3. **NGA 职业分区精贴楼主张**（S 级，国服专名）：用其 M1-M9/副本列表把 Maxroll 表的英文 boss 名**钉中文正名**（实测：唤魔师分区 fid=851「巨龙群岛」，12.1 团本指引 tid=47436848 楼首给全 M1-M9 中文名）。板块入口=版头 thread.php?fid=xxx；合集帖的折叠层不吃合成点击（同十一节老坑），**别在折叠上耗时间**。
+4. **死路（勿再试）**：**warcraft.wiki.gg 对 12.x 装备无逐件页**（`Item:272250` 实测 404）→ 该站仅 cvar 类按 S，"itemID→获取来源"查询不可用；`db.17173.com` 超时死；`mo.gg` 超时；`icy-veins.com` 403；`www.warcraftlogs.com` HEAD 403；`www.cn.warcraftlogs.com` 超时；`raidbots.com`/`mythictrack.com` 本机 TLS 握手失败；`ui.163.com`（网易有爱）超时。Bloodmallet 可达(200) 但纯图表 SPA，取数困难→仅作排名佐证。
+5. **方法论结论**：逐件"从哪个本掉"的国际数据库全断（wowhead 禁试+wiki.gg 缺页）→ 配装知识必须**离线整理入库固化**（`retail/gear/` 首例已建），运行时现查只读 NGA/Maxroll 帖、不撞数据库。
+
 ## URL 会被中转改写（2026-09-25 取证定论）
 provider 中转层（routify）会把模型输出里的**完整 URL**替换为其预取的 OSS 签名链接（替换发生在参数到达工具前）。症状：403、内容与所求无关、Ran code 回显 routify 地址。对策：browser_evaluate 内**分片拼接** URL（实测绕开）或 bash 直连；被改写过的 routify 残留禁止再次使用；引用/入库只记真实目标 URL。详见项目 playwright skill §3。
+**2026-10-01 补**：webfetch 对 api.github.com/jsdelivr 也会偶发改写（一次取证内 3 见）——403/货不对板先看回显是否 routify 残留，换法重试真实目标即可恢复，**勿据此计入域名不可达/禁试清单**。
 
 ## 禁试清单（本机实测不通）
 github.com 网页/git、wowhead.com、wowpedia(fandom)、duckduckgo。取货走上面 1-3 号路。
@@ -75,6 +93,9 @@ github.com 网页/git、wowhead.com、wowpedia(fandom)、duckduckgo。取货走�
 8. 坑——**bing 摘要日期不可信**（2026-09-25 两见）：结果里混"2002年11月4日""2004年6月22日"等错档期，判新旧只信文本内版本/事件线索，必要时开原文核对。
 9. 红线教训——**"GitHub 查无此仓 ≠ 插件已死"**（2026-09-25 Cell 误判事故，当日二修）：国服插件分发通路是大脚插件站/178/NGA 搬运帖，正式服活跃插件可以完全没有 GitHub 镜像。判"死/活"必须过中文检索（bing"插件名+版本+停更/还能用"）≥2 独立摘要；只查 GitHub 就下生态结论=打回级错误（backport 仓活跃还可能反向误导"开发终止"假象）。**姊妹坑：GitHub repo 搜索默认隐藏 fork**（NeeRgY/Cell 23★ 因 fork 属性从未出现在搜索结果），查 fork 线要在 q 加 `fork:all`。
 10. **NGA 登录态使用纪律**（2026-09-25 实测定型）：cookie 绑 `bbs.nga.cn` 域，`ngabbs.com` 镜像不吃登录态（403"访客不能直接访问"）→ 一律走 bbs.nga.cn；请求间隔 ≥3-5s；首跳常过 `adpage_insert` 验证插页，等 2-4s 自动放行再取文；出现"请登录后访问"=登录过期，降级回摘要 C 级并请用户重登。国服插件分发站 `addons.miliui.com`（米利/奇樂）存活：下载=preparedownload 签名直链（分钟级 TTL）→HTML 确认页→表单 POST(_token) 才出文件，**必须浏览器带会话走三步**（纯 bash 403）；NGA 帖附件 CDN 对脚本掐链。
+11. **语音包"能不能喊 X"的证据链**（2026-09-28 定型）：插件主仓通用键枚举（DBM=`DBM-Core/VoicePackSounds.lua`）× 语音包文件名/台本 csv/toc 头（`X-DBM-Voice-*`/`RegisterVoicePack`）双侧交叉=**S 级**，比任何攻略稿硬；大文件绕 raw/jsDelivr 断流用 `api.github.com .../git/blobs/<sha>` base64 直取。
+12. **国服分发取证免开站**（2026-09-28）：百度 SERP 摘要可直接带出**大脚插件站/178 插件库**详情页元数据（条目名/版本号/日期/大小/"来源=curseforge"），B 级够用免进站；NGA 语音包帖首发的网盘链**时效看首发日期**，最新以 GitHub/Curse 为准（首发帖会滞后于仓库）。
+13. **两个新错误形态**：NGA `ERROR:5 帖子发布或回复时间超过限制`=**帖锁/沉**（≠"请登录后访问"的登录过期，别去重登）；so.com 在本机浏览器首查即跳 qcaptcha（IP 已标记，不止连查才跳）→ 中文 SERP 直接走百度。
 
 ## 疑似服务端 BUG/「修没修」类问题（2026-09-26 危难时刻实战定通路）
 1. **官网新闻栏「在线修正」= S 级一手**（blizz 官网文章，**文章编号=持久引用**，条目按日期分组）：相位/NPC 消失类服务端行为只有这里能一手确认，UI 镜像够不到；"是 BUG 吗/修了吗"先查它。

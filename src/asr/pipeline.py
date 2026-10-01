@@ -120,6 +120,7 @@ class AsrWorker:
         self.err_count = 0
         self.rtf_last = -1.0
         self.rtfs: list[float] = []
+        self.busy = False                # 解码在飞(worker 线程写/主 loop 读,GIL 单值原子)
         self.pseudo_count = 0            # 哨兵(M14 §6): 结果完全由当前词表拼成的次数, 纯观测不拦截
         self._hotwords = ""                  # M14 常驻词表快照(不可变 str, 写者=AsrPipeline 门面, 跨线程赋值原子)
 
@@ -170,6 +171,7 @@ class AsrWorker:
             item = self._seg.get(timeout=0.1)
             if item is None:
                 continue
+            self.busy = True                      # try/finally 包全程: 空文本 return 与异常路径都必须复位
             try:
                 self.decode_segment(*item)
             except Exception:
@@ -177,6 +179,8 @@ class AsrWorker:
                 if self.err_count <= 2:
                     import traceback
                     traceback.print_exc()
+            finally:
+                self.busy = False
 
 
 class AsrPipeline:
@@ -203,6 +207,11 @@ class AsrPipeline:
         if csv is not None:
             self._worker._hotwords = csv
         return csv
+
+    def audio_pending(self) -> bool:
+        """M5 提交闸: 在说/尾静音判定(speaking) 或 段在队/解码在飞(busy/qsize) → 话还在路上。"""
+        return (self._vad.speaking or self._worker.busy
+                or self._worker._seg.qsize() > 0)
 
     def stats(self) -> dict:
         return {"segments": self._vad.segment_count,

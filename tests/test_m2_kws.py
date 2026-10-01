@@ -147,6 +147,24 @@ def test_muted_drops_hit_and_unmute_clears():
     assert sp.reset_count >= 2
 
 
+def test_cooldown_emits_repeat_hit_for_echo_anchor():
+    """cooldown 内二喊仍 emit repeat=True 事件(供编排器刷回音锚), 但 hit_count 不加、_last_hit 不刷新。"""
+    sink = DropOldestQueue(250)
+    sp = FakeSpotter(["A", "B"])
+    hits = queue.Queue()
+    clk = Clock()
+    w = KwsWorker(sp, sink, hits.put, KwsConfig(cooldown_s=2.0), clock=clk)
+    _drain_to(w, sink, 20)
+    w.start()
+    first = hits.get(timeout=2.0)
+    second = hits.get(timeout=2.0)                       # 同批内第二命中, 落 cooldown → repeat
+    w.stop()
+    assert first.keyword == "A" and not first.repeat
+    assert second.keyword == "B" and second.repeat
+    assert w.hit_count == 1 and w.dropped_count >= 1
+    assert clk.t == 1000.0                               # 测试侧时钟未推进, _last_hit 语义由实现保证
+
+
 def test_stop_responsiveness():
     sink = DropOldestQueue(250)
     sp = FakeSpotter([])

@@ -49,6 +49,8 @@ def main():
     t0 = time.time()
 
     def on_hit(h):
+        if getattr(h, "repeat", False):        # M13 cooldown 二喊只刷回音锚, 不计入唤醒率/误触发
+            return
         hits.append(h)
         print(f"  ✔ 命中 #{len(hits)} '{h.keyword}' @+{h.ts - t0:.1f}s")
         beep()

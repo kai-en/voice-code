@@ -48,8 +48,12 @@ class EventHub:
             return None
         if t.startswith("server.") or t == "session.error":
             return OcLink("connected" if t == "server.connected" else t, str(data)[:120])
+        if t in ("mcp.status.changed", "mcp.resources.changed"):   # 观测: 目录变化前兆(无sessionID)
+            return OcLink(t, str(data.get("server", "")))
         if sid not in self.own:
             return None
+        if t == "session.instructions.updated":                    # 观测: 本回合上下文已重排+尾部注入
+            return OcLink("instructions.updated", f"{sid} delta={sorted(data.get('delta') or {})}")
         if t == "session.text.delta":
             return OcText(sid, data.get("delta", ""), final=False)
         if t == "session.text.ended":

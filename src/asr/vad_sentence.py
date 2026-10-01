@@ -70,6 +70,7 @@ class VadSentencer:
         self._buf = np.zeros(0, dtype=np.float32)
         self.segment_count = 0
         self.err_count = 0
+        self.speaking = False        # 此刻是否在语音段中(vad 线程写/主 loop 读,GIL 单值原子)
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, daemon=True, name="vad")
@@ -84,6 +85,8 @@ class VadSentencer:
         if on == self._active:
             return
         self._active = on
+        if not on:
+            self.speaking = False                     # 卫生：inactive 期间 speaking 不得残留 True
         if on:
             self._vad.reset()
             self._buf = np.zeros(0, dtype=np.float32)
@@ -108,6 +111,7 @@ class VadSentencer:
             if seg.size:
                 self.segment_count += 1
                 self._on_segment(seg, seg_end)
+        self.speaking = self._vad.is_speech_detected()   # 在说/尾静音判定中=True；段 finalize 即 False(早于 pop)。M5 用它推迟提交
 
     def _run(self) -> None:
         while not self._stop.is_set():

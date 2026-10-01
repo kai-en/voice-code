@@ -34,13 +34,16 @@ def _is_running(f):
 async def _run():
     port = os.environ.get("VOICECODE_CONSOLE_PORT", "8765")
     t0 = None                                          # RUNNING 起点(monotonic)；非 None = 占位行驻留行尾
+    next_draw = 0.0                                    # 绝对时刻：帧帧不断也会准点刷新(0930 修:计时曾被来帧重置)
     async with connect(f"ws://127.0.0.1:{port}/") as ws:
         recv = asyncio.ensure_future(ws.recv())
         while True:
-            done, _ = await asyncio.wait({recv}, timeout=(TICK_S if t0 is not None else None))
+            timeout = None if t0 is None else max(0.0, next_draw - time.monotonic())
+            done, _ = await asyncio.wait({recv}, timeout=timeout)
             if not done:
                 sys.stdout.write("\r" + think_line(time.monotonic() - t0))
                 sys.stdout.flush()
+                next_draw = time.monotonic() + TICK_S
                 continue
             try:
                 raw = recv.result()
@@ -50,6 +53,7 @@ async def _run():
             f = json.loads(raw)
             if _is_running(f):
                 t0 = time.monotonic()
+                next_draw = t0 + TICK_S
                 sys.stdout.write("\r" + think_line(0.0))
                 sys.stdout.flush()
                 continue

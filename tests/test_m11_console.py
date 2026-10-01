@@ -84,6 +84,9 @@ class FakeAsr:
     def set_active(self, on):
         self.active = on
 
+    def audio_pending(self):
+        return False
+
     def set_hotwords(self, words):
         from asr.pipeline import normalize_hotwords
         return normalize_hotwords(list(words) if isinstance(words, (list, tuple)) else words)

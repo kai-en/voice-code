@@ -23,15 +23,19 @@ class FakeSegment:
 
 
 class FakeVad:
-    def __init__(self, script=None):
+    def __init__(self, script=None, detected=False):
         self.wins = []                 # 收到的每个 512 窗
         self.reset_count = 0
         self.queue = list(script or [])  # [FakeSegment]
         self._current = None
+        self.detected = detected       # is_speech_detected() 返回值(speaking 闸用例)
 
     def accept_waveform(self, w):
         self.wins.append(w.copy())
         self._current = w
+
+    def is_speech_detected(self):
+        return self.detected
 
     def empty(self):
         return len(self.queue) == 0
@@ -104,6 +108,16 @@ def test_activate_injects_preroll_and_resets():
     s2.set_active(True)
     assert vad2.reset_count == 1
     assert sum(len(w) for w in vad2.wins) >= 3200 - WINDOW
+
+
+def test_speaking_mirrors_is_speech_detected_and_deactivate_clears():
+    vad = FakeVad(None, detected=True)
+    s = VadSentencer(vad, DropOldestQueue(8), lambda x, st: None)
+    s._active = True
+    s.feed(np.full(WINDOW, 0.5, dtype=np.float32))
+    assert s.speaking is True                       # 在说/尾静音判定 → M5 提交闸推迟
+    s.set_active(False)
+    assert s.speaking is False                      # 卫生: 停用即清零, 不残留
 
 
 def test_empty_text_not_emitted():
@@ -186,3 +200,30 @@ def test_stats_shape():
     p = AsrPipeline(s, w)
     st = p.stats()
     assert set(st) >= {"segments", "texts", "empty", "rtf_last"}
+
+
+def test_audio_pending_union():
+    from asr.pipeline import AsrPipeline
+
+    class FakeQ:
+        def __init__(self, n): self.n = n
+        def qsize(self): return self.n
+
+    class FakeW:
+        busy = False
+        _seg = FakeQ(0)
+
+    class FakeV:
+        speaking = False
+
+    v, w = FakeV(), FakeW()
+    p = AsrPipeline(v, w)
+    assert p.audio_pending() is False                 # 三源全空 → 可提交
+    v.speaking = True
+    assert p.audio_pending() is True                  # 在说/尾静音
+    v.speaking = False
+    w.busy = True
+    assert p.audio_pending() is True                  # 解码在飞
+    w.busy = False
+    w._seg = FakeQ(2)
+    assert p.audio_pending() is True                  # 段在队未取
