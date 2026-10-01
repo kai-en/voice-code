@@ -1,6 +1,7 @@
 # M13 对话流水视图：连 M11 控制台 WS，只打「你 / 助手」两方流水（直播时听不清就看这个）。
 # 设计 docs/0926工作/m13-dialog-view-design.md。跑法：dialog.bat（或 python -X utf8 src\console\dialog.py）。
 # RUNNING 期间占位行「思考中...(x秒)」原地刷新(\r)，每 TICK_S 一次；出现真实对话行或离开 RUNNING 时收行。
+# voice-end 工具被调后状态进 IDLE → 补一行「(助手已退出)」；中途回 COLLECT（被抢话打断）清标记；hello 不算。
 import asyncio
 import json
 import os
@@ -31,10 +32,17 @@ def _is_running(f):
     return f.get("t") in ("state", "hello") and f.get("state") == "RUNNING"
 
 
+def _is_voice_end_called(f):
+    d = f.get("d") or {}
+    return (f.get("t") == "ev" and f.get("kind") == "OcTool"
+            and d.get("name") == "voice-end" and d.get("phase") == "called")
+
+
 async def _run():
     port = os.environ.get("VOICECODE_CONSOLE_PORT", "8765")
     t0 = None                                          # RUNNING 起点(monotonic)；非 None = 占位行驻留行尾
     next_draw = 0.0                                    # 绝对时刻：帧帧不断也会准点刷新(0930 修:计时曾被来帧重置)
+    voice_end = False                                  # 看到 voice-end/called → 随后的进 IDLE 才配「已退出」
     async with connect(f"ws://127.0.0.1:{port}/") as ws:
         recv = asyncio.ensure_future(ws.recv())
         while True:
@@ -62,6 +70,14 @@ async def _run():
                 sys.stdout.flush()
                 t0 = None
             line = render(f)
+            if _is_voice_end_called(f):
+                voice_end = True
+            elif f.get("t") == "state":
+                if f.get("state") == "IDLE" and voice_end:
+                    voice_end = False
+                    print("(助手已退出)", flush=True)   # 告别语已由 speak 帧先行入列
+                elif f.get("state") == "COLLECT":
+                    voice_end = False                   # voice-end 被抢话作废，会话继续
             if line:
                 print(line, flush=True)
         recv.cancel()

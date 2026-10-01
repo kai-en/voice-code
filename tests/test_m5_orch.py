@@ -469,7 +469,7 @@ def test_thinking_phase_ignores_asr():
 
 
 def test_kws_interrupts_thinking_phase_and_collects_next():
-    """思考期 KWS 命中→打断(不念 ack, Q1)；激活词转写剥空不污染 buf；后续句正常采集。"""
+    """思考期 KWS 命中→打断并念 ack 确认(10-01 反转 Q1: 静默打断不可辨)；激活词转写剥空不污染 buf；后续句正常采集。"""
     async def _run():
         orch, asr, tts, oc, now = build()
         fut = asyncio.get_running_loop().create_future()
@@ -480,7 +480,9 @@ def test_kws_interrupts_thinking_phase_and_collects_next():
             await orch.tick(); await asyncio.sleep(0.02)
             orch.post(KwsHit("小码小码", 0)); await asyncio.sleep(0.02)
             assert orch.state == COLLECT and oc.interrupts == ["ses_1"] and tts.stops >= 1
-            assert tts.spoken == ["在呢。"]                               # 打断不另念 ack
+            assert tts.spoken == ["在呢。"]                               # 双停(0.4s)前不出口
+            await asyncio.sleep(0.5)
+            assert tts.spoken == ["在呢。", "在呢。"]                      # 打断确认后补念 ack
             orch.post(AsrText("小码小码", 0, 0.5)); await asyncio.sleep(0.02)
             assert orch.buf == ""                                         # strip_wake 后为空 → 不入 buf
             orch.post(AsrText("停，换个事", 0, 0.5)); await asyncio.sleep(0.02)
@@ -553,6 +555,8 @@ def test_barge_in_stops_and_recollects():
             await asyncio.sleep(0.05)
             assert orch.state == COLLECT and oc.interrupts == ["ses_1"]
             assert tts.stops >= 1 and orch.buf == "停，换个事"
+            await asyncio.sleep(0.5)
+            assert tts.spoken == ["在呢。", "收到。"]   # 主播抢话型打断不补 ack（不抢话头），与 KWS 型区分
         finally:
             fut.cancel()
             await finish(task, orch)

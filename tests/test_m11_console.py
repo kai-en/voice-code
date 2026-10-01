@@ -208,3 +208,16 @@ def test_dialog_render_only_two_party_lines():
     assert _is_running({"t": "state", "state": "RUNNING"})
     assert _is_running({"t": "hello", "v": 1, "state": "RUNNING"})
     assert not _is_running({"t": "state", "state": "COLLECT"})
+
+
+def test_dialog_voice_end_predicate():
+    """「(助手已退出)」提示只跟 voice-end/called 后的进 IDLE；started/别的工具/裸 IDLE 不算。"""
+    from console.dialog import _is_voice_end_called
+    assert _is_voice_end_called({"t": "ev", "kind": "OcTool",
+                                 "d": {"name": "voice-end", "phase": "called"}})
+    assert not _is_voice_end_called({"t": "ev", "kind": "OcTool",
+                                     "d": {"name": "voice-end", "phase": "started"}})
+    assert not _is_voice_end_called({"t": "ev", "kind": "OcTool",
+                                     "d": {"name": "set-hotwords", "phase": "called"}})
+    assert not _is_voice_end_called({"t": "state", "state": "IDLE"})
+    assert not _is_voice_end_called({"t": "ev", "kind": "OcTool"})

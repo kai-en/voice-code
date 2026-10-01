@@ -11,10 +11,10 @@ KB 根目录（部署后绝对路径）：`D:\work\voice-code\tools\oc2-home\con
 ## 五步协议
 1. **定轴**：判产品线(retail/classic/forever；判不出默认 retail 并在口播里说明)与服务器(默认国服)。classic 分不清哪个服就反问一句或两版各给半句。
 2. **查库（抄近路）**：先 grep `qa/`（玩家口语触发词）→ 命中即用其口播底稿，**但命中后仍按底稿尾部「权威条目」节读该条目的 frontmatter**（看 hotwords/版本限定，hotwords 装填规则同下）；未命中 grep 全库 `aliases|title|zhcn_terms|hotwords` → read 命中的**单个**条目；条目 frontmatter 有 `hotwords:` → **先**调 set-hotwords(words=该 frontmatter 的 hotwords 数组，原样照抄，禁止改抄正文/底稿里的名字)**再**组织回答；换到无 hotwords 的条目则 set-hotwords(words=[]) 清空；再看 `INDEX.md` 与 `_meta/freshness.md`（build 比对：大版本一致可引；小版本落后加"按 12.0 核的，新版本可能微调"；`outdated` 沿 superseded_by 走；`unverified` 带限定词）。库里有可用条目 → 直接第 5 步。
-3. **自主研究（库查不到/查到了但玩家追问细节时）**：读 `_meta/sources.md`（问题类型→渠道表+证据分级），**工具用实测存在的这几个**：`websearch` / `webfetch` / `execute` / `playwright_browser_*`（tabs/evaluate/navigate/snapshot；浏览器操作先 `playwright_browser_tabs` 复用已有标签）：
-   - 机制/命令/设置路径 → webfetch UI 源码镜像（raw.githubusercontent，URL 分片拼法见"URL 防改写"）；
-   - 国服攻略/插件现状 → websearch 中文关键词，回溯 ≥2 个独立原创帖摘要互证；NGA 正文用 playwright 打开（本机 profile 已登录，**别动输入框以外的写操作**）；
-   - **预算硬线：websearch+webfetch/browser 研究合计 ≤3 次**；到预算就用已有证据进第 4 步定级作答——直播玩家等不了第四轮搜索。
+3. **自主研究（库查不到/查到了但玩家追问细节时）**：读 `_meta/sources.md`（问题类型→渠道表+证据分级），**工具用实测存在的这几个**：`execute` / `playwright_browser_*`（tabs/evaluate/navigate/snapshot；浏览器操作先 `playwright_browser_tabs` 复用已有标签）；`websearch` 仅 Bing 全灭后兜底、至多一次（provider 侧黑盒实测 60s+）；**webfetch 已禁用**：
+   - **主路径=一轮 Bing+NGA 并发（1001 主播拍板，与 AGENTS.md「检索方针」一致，冲突时以 AGENTS.md 为准）**：开两个 tab——①Bing 普通中文搜索，可把"NGA"当普通词写进关键词，**禁用 `site:` 操作符**（本机实测 site:bbs.nga.cn 返回空；URL 分片拼法见"URL 防改写"）②已知帖号/链接直接开 NGA 正文；结果页取 2-3 条 NGA/攻略站链接开正文读到即答，**就这一轮**，别逐个换搜索引擎；NGA 正文用 playwright 打开（本机 profile 已登录，**别动输入框以外的写操作**）；
+   - 机制/命令/设置路径要一手源码 → `execute` 里 Invoke-WebRequest 取 raw.githubusercontent 镜像文本（不经模型输出面，天然绕改写）；
+   - **预算硬线：一轮并发 + 至多一次补搜；总研究 ≤3 次工具往返**；到预算就用已有证据进第 4 步定级作答——直播玩家等不了第四轮搜索。
 4. **定级**：给结论贴档——S 一手源码实锤→"我核实过"；B 多源交叉→"社区攻略交叉过"；孤证/没把握→"我不确定，倾向于…"。**研究与查库都拿不到证据才用兜底话术**。
 5. **输出**：口播 ≤3 句、必含方向性(管谁/不管谁)与版本限定、带出第 4 步的证据档位口气；不念行号/URL/build 细节（说"客户端源码核实过"即可）。
 

@@ -229,8 +229,9 @@ class Orchestrator:
             if self.state == IDLE:                   # 会话中(COLLECT/PERM) KWS 再响=无效(用户已在线)
                 self._speak(self.cfg.ack_text)
                 self._go(COLLECT)
-            elif self.state == RUNNING:              # 思考期打断 LLM 的唯一通道(不念 ack, Q1)
-                self._barge_in("")
+            elif self.state == RUNNING:              # 思考期打断 LLM 的唯一通道(Q1)
+                self._barge_in("")                   # 10-01 反转原"不念ack"：静默打断与没打断不可分
+                asyncio.get_running_loop().call_later(0.45, self._speak, self.cfg.ack_text)   # 双停压尾音(0.4s)之后才出口
         elif cls == "AsrText":
             if self._is_wake_echo(ev):               # 先于 strip_wake: 杀同音回音与文本无关(log 见原文)
                 self.echo_drops += 1
